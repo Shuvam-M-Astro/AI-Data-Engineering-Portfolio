@@ -1,6 +1,7 @@
 # ML-Portfolio: Simple Machine Learning Scripts Used To Test Remote Cluster
 
 A comprehensive collection of machine learning projects implementing various algorithms and techniques on popular datasets. This repository serves as a showcase of data science and machine learning skills across different problem domains.
+These scripts were initially created to also be used to quickly monitor performance on new systems. 
 
 ## Projects
 
