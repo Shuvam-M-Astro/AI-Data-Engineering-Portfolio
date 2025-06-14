@@ -1,7 +1,8 @@
-# ML-Portfolio: Simple Machine Learning Scripts Used To Test Remote Cluster
+# Simple ML Portfolio
 
-A comprehensive collection of machine learning projects implementing various algorithms and techniques on popular datasets. This repository serves as a showcase of data science and machine learning skills across different problem domains.
-These scripts were initially created to also be used to quickly monitor performance on new systems. 
+A collection of machine learning projects implementing various algorithms and techniques on popular datasets. These scripts were initially created to also be used to quickly monitor performance on new systems. 
+
+## Project Structure
 
 ## Projects
 
@@ -14,29 +15,25 @@ These scripts were initially created to also be used to quickly monitor performa
 ### Regression
 - **AIR**: Air quality prediction
 
-### Mixed Analysis
+### Text Analysis
 - **Titanic**: Survival prediction using passenger data
 
-## Project Structure
+### LLM
+- **LangChain**: Chatbot implementation with tools and memory
+- **RAG**: Retrieval Augmented Generation system for document-based QA
 
-Each project is contained in its own directory and includes:
-- Data preprocessing and exploration
-- Model implementation and training
-- Evaluation metrics and results
-- Visualization of results
+### Audio Processing
+- **SpeechRecognition**: Speech-to-text using Whisper model
 
-## Technologies Used
-
-- Python
-- Machine Learning Libraries (scikit-learn, TensorFlow, PyTorch)
-- Data Processing Libraries (pandas, numpy)
-- Visualization Tools (matplotlib, seaborn)
+### MLOps & Deployment
+- **MLOps**: End-to-end ML pipeline with MLflow and DVC
+- **ModelServing**: FastAPI-based model serving with authentication
 
 ## Getting Started
 
 1. Clone the repository
 ```bash
-git clone https://github.com/[username]/ML-Portfolio.git
+git clone https://github.com/[username]/Simple-ML-Portfolio.git
 ```
 
 2. Navigate to specific project directory
@@ -44,10 +41,20 @@ git clone https://github.com/[username]/ML-Portfolio.git
 cd [project-name]
 ```
 
-3. Install required dependencies (if available in project directory)
+3. Install required dependencies
 ```bash
 pip install -r requirements.txt
 ```
+
+## Technologies Used
+
+- Python
+- Machine Learning Libraries (scikit-learn, TensorFlow, PyTorch)
+- Data Processing Libraries (pandas, numpy)
+- Visualization Tools (matplotlib, seaborn)
+- Modern AI (LangChain, Whisper)
+- MLOps Tools (MLflow, DVC)
+- Web Framework (FastAPI)
 
 ## Contributing
 
