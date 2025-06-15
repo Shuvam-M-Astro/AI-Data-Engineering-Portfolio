@@ -3,16 +3,296 @@ import torchvision
 import torchvision.transforms as transforms
 import torch.nn as nn
 import torch.optim as optim
-from torch.optim.lr_scheduler import ReduceLROnPlateau
+from torch.optim.lr_scheduler import ReduceLROnPlateau, OneCycleLR
 from torch.cuda.amp import autocast, GradScaler
 from torch.quantization import quantize_dynamic
 from torch.ao.pruning import BasePruner, L1Unstructured
+from torch.utils.tensorboard import SummaryWriter
+from typing import Tuple, Dict, Optional, List, Union
 import time
 import numpy as np
 import pandas as pd
 import argparse
 import os
+import logging
 from datetime import datetime
+from pathlib import Path
+import json
+from dataclasses import dataclass
+from tqdm import tqdm
+
+# Configure logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(levelname)s - %(message)s',
+    handlers=[
+        logging.FileHandler('training.log'),
+        logging.StreamHandler()
+    ]
+)
+logger = logging.getLogger(__name__)
+
+@dataclass
+class TrainingConfig:
+    """Configuration for training parameters."""
+    batch_size: int = 128
+    epochs: int = 20
+    learning_rate: float = 0.001
+    weight_decay: float = 1e-4
+    early_stopping_patience: int = 5
+    mixed_precision: bool = True
+    num_workers: int = 2
+    pin_memory: bool = True
+
+class MNISTDataset(torch.utils.data.Dataset):
+    """Custom dataset class for MNIST with advanced preprocessing."""
+    def __init__(self, root: str, train: bool = True, transform: Optional[transforms.Compose] = None):
+        self.dataset = torchvision.datasets.MNIST(root=root, train=train, download=True, transform=transform)
+        self.transform = transform
+
+    def __len__(self) -> int:
+        return len(self.dataset)
+
+    def __getitem__(self, idx: int) -> Tuple[torch.Tensor, int]:
+        img, label = self.dataset[idx]
+        if self.transform:
+            img = self.transform(img)
+        return img, label
+
+class ResidualBlock(nn.Module):
+    """Residual block for improved gradient flow."""
+    def __init__(self, in_channels: int, out_channels: int, stride: int = 1):
+        super().__init__()
+        self.conv1 = nn.Conv2d(in_channels, out_channels, kernel_size=3, stride=stride, padding=1, bias=False)
+        self.bn1 = nn.BatchNorm2d(out_channels)
+        self.conv2 = nn.Conv2d(out_channels, out_channels, kernel_size=3, stride=1, padding=1, bias=False)
+        self.bn2 = nn.BatchNorm2d(out_channels)
+        
+        self.shortcut = nn.Sequential()
+        if stride != 1 or in_channels != out_channels:
+            self.shortcut = nn.Sequential(
+                nn.Conv2d(in_channels, out_channels, kernel_size=1, stride=stride, bias=False),
+                nn.BatchNorm2d(out_channels)
+            )
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        residual = x
+        out = torch.relu(self.bn1(self.conv1(x)))
+        out = self.bn2(self.conv2(out))
+        out += self.shortcut(residual)
+        out = torch.relu(out)
+        return out
+
+class AdvancedNet(nn.Module):
+    """Advanced CNN architecture with residual connections and attention."""
+    def __init__(self, num_classes: int = 10):
+        super().__init__()
+        self.in_channels = 64
+        
+        # Initial convolution
+        self.conv1 = nn.Sequential(
+            nn.Conv2d(1, 64, kernel_size=3, stride=1, padding=1, bias=False),
+            nn.BatchNorm2d(64),
+            nn.ReLU(inplace=True)
+        )
+        
+        # Residual blocks
+        self.layer1 = self._make_layer(64, 2, stride=1)
+        self.layer2 = self._make_layer(128, 2, stride=2)
+        self.layer3 = self._make_layer(256, 2, stride=2)
+        
+        # Attention mechanism
+        self.attention = nn.Sequential(
+            nn.Conv2d(256, 1, kernel_size=1),
+            nn.Sigmoid()
+        )
+        
+        # Classifier
+        self.avgpool = nn.AdaptiveAvgPool2d((1, 1))
+        self.fc = nn.Sequential(
+            nn.Linear(256, 512),
+            nn.BatchNorm1d(512),
+            nn.ReLU(inplace=True),
+            nn.Dropout(0.5),
+            nn.Linear(512, num_classes)
+        )
+        
+        # Initialize weights
+        self._initialize_weights()
+
+    def _make_layer(self, out_channels: int, num_blocks: int, stride: int) -> nn.Sequential:
+        layers = []
+        layers.append(ResidualBlock(self.in_channels, out_channels, stride))
+        self.in_channels = out_channels
+        for _ in range(1, num_blocks):
+            layers.append(ResidualBlock(out_channels, out_channels))
+        return nn.Sequential(*layers)
+
+    def _initialize_weights(self) -> None:
+        for m in self.modules():
+            if isinstance(m, nn.Conv2d):
+                nn.init.kaiming_normal_(m.weight, mode='fan_out', nonlinearity='relu')
+            elif isinstance(m, nn.BatchNorm2d):
+                nn.init.constant_(m.weight, 1)
+                nn.init.constant_(m.bias, 0)
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        x = self.conv1(x)
+        x = self.layer1(x)
+        x = self.layer2(x)
+        x = self.layer3(x)
+        
+        # Apply attention
+        attention = self.attention(x)
+        x = x * attention
+        
+        x = self.avgpool(x)
+        x = torch.flatten(x, 1)
+        x = self.fc(x)
+        return x
+
+class ModelTrainer:
+    """Advanced model trainer with comprehensive training features."""
+    def __init__(
+        self,
+        model: nn.Module,
+        config: TrainingConfig,
+        device: torch.device,
+        writer: Optional[SummaryWriter] = None
+    ):
+        self.model = model
+        self.config = config
+        self.device = device
+        self.writer = writer
+        self.scaler = GradScaler() if config.mixed_precision else None
+        
+        # Initialize optimizer and scheduler
+        self.optimizer = optim.AdamW(
+            model.parameters(),
+            lr=config.learning_rate,
+            weight_decay=config.weight_decay
+        )
+        
+        self.scheduler = OneCycleLR(
+            self.optimizer,
+            max_lr=config.learning_rate,
+            epochs=config.epochs,
+            steps_per_epoch=1,
+            pct_start=0.3
+        )
+        
+        self.criterion = nn.CrossEntropyLoss()
+        self.best_acc = 0
+        self.patience_counter = 0
+
+    def train_epoch(self, trainloader: torch.utils.data.DataLoader) -> Tuple[float, float]:
+        """Train for one epoch with progress bar and metrics tracking."""
+        self.model.train()
+        running_loss = 0.0
+        correct = 0
+        total = 0
+        
+        pbar = tqdm(trainloader, desc='Training')
+        for inputs, labels in pbar:
+            inputs, labels = inputs.to(self.device), labels.to(self.device)
+            
+            self.optimizer.zero_grad()
+            
+            if self.config.mixed_precision:
+                with autocast():
+                    outputs = self.model(inputs)
+                    loss = self.criterion(outputs, labels)
+                self.scaler.scale(loss).backward()
+                self.scaler.step(self.optimizer)
+                self.scaler.update()
+            else:
+                outputs = self.model(inputs)
+                loss = self.criterion(outputs, labels)
+                loss.backward()
+                self.optimizer.step()
+            
+            running_loss += loss.item()
+            _, predicted = outputs.max(1)
+            total += labels.size(0)
+            correct += predicted.eq(labels).sum().item()
+            
+            # Update progress bar
+            pbar.set_postfix({
+                'loss': f'{running_loss/total:.4f}',
+                'acc': f'{100.*correct/total:.2f}%'
+            })
+        
+        return running_loss / len(trainloader), 100. * correct / total
+
+    def validate(self, testloader: torch.utils.data.DataLoader) -> Tuple[float, float]:
+        """Validate the model with detailed metrics."""
+        self.model.eval()
+        running_loss = 0.0
+        correct = 0
+        total = 0
+        all_preds = []
+        all_labels = []
+        
+        with torch.no_grad():
+            for inputs, labels in tqdm(testloader, desc='Validation'):
+                inputs, labels = inputs.to(self.device), labels.to(self.device)
+                
+                if self.config.mixed_precision:
+                    with autocast():
+                        outputs = self.model(inputs)
+                        loss = self.criterion(outputs, labels)
+                else:
+                    outputs = self.model(inputs)
+                    loss = self.criterion(outputs, labels)
+                
+                running_loss += loss.item()
+                _, predicted = outputs.max(1)
+                total += labels.size(0)
+                correct += predicted.eq(labels).sum().item()
+                
+                all_preds.extend(predicted.cpu().numpy())
+                all_labels.extend(labels.cpu().numpy())
+        
+        accuracy = 100. * correct / total
+        avg_loss = running_loss / len(testloader)
+        
+        # Log metrics
+        if self.writer:
+            self.writer.add_scalar('Validation/Loss', avg_loss)
+            self.writer.add_scalar('Validation/Accuracy', accuracy)
+        
+        return avg_loss, accuracy
+
+    def save_checkpoint(self, epoch: int, is_best: bool = False) -> None:
+        """Save model checkpoint with comprehensive metadata."""
+        checkpoint = {
+            'epoch': epoch,
+            'model_state_dict': self.model.state_dict(),
+            'optimizer_state_dict': self.optimizer.state_dict(),
+            'scheduler_state_dict': self.scheduler.state_dict(),
+            'best_acc': self.best_acc,
+            'config': self.config.__dict__,
+            'timestamp': datetime.now().isoformat()
+        }
+        
+        # Save regular checkpoint
+        torch.save(checkpoint, f'checkpoints/model_epoch_{epoch}.pth')
+        
+        # Save best model
+        if is_best:
+            torch.save(checkpoint, 'checkpoints/best_model.pth')
+            
+            # Save model metadata
+            metadata = {
+                'architecture': self.model.__class__.__name__,
+                'parameters': sum(p.numel() for p in self.model.parameters()),
+                'best_accuracy': self.best_acc,
+                'training_config': self.config.__dict__,
+                'timestamp': datetime.now().isoformat()
+            }
+            
+            with open('checkpoints/model_metadata.json', 'w') as f:
+                json.dump(metadata, f, indent=4)
 
 def parse_args():
     parser = argparse.ArgumentParser(description='MNIST Classification with Advanced Features')
@@ -65,192 +345,6 @@ testset = torchvision.datasets.MNIST(root='./data', train=False, download=True, 
 testloader = torch.utils.data.DataLoader(testset, batch_size=128, shuffle=False,
                                        pin_memory=True, num_workers=2 if device.type == 'cuda' else 0)
 
-# Improved CNN architecture with batch normalization and dropout
-class ImprovedNet(nn.Module):
-    def __init__(self):
-        super(ImprovedNet, self).__init__()
-        self.features = nn.Sequential(
-            nn.Conv2d(1, 32, kernel_size=3, padding=1),
-            nn.BatchNorm2d(32),
-            nn.ReLU(inplace=True),
-            nn.Conv2d(32, 32, kernel_size=3, padding=1),
-            nn.BatchNorm2d(32),
-            nn.ReLU(inplace=True),
-            nn.MaxPool2d(kernel_size=2, stride=2),
-            nn.Dropout2d(0.25),
-            
-            nn.Conv2d(32, 64, kernel_size=3, padding=1),
-            nn.BatchNorm2d(64),
-            nn.ReLU(inplace=True),
-            nn.Conv2d(64, 64, kernel_size=3, padding=1),
-            nn.BatchNorm2d(64),
-            nn.ReLU(inplace=True),
-            nn.MaxPool2d(kernel_size=2, stride=2),
-            nn.Dropout2d(0.25)
-        )
-        
-        self.classifier = nn.Sequential(
-            nn.Linear(64 * 7 * 7, 512),
-            nn.BatchNorm1d(512),
-            nn.ReLU(inplace=True),
-            nn.Dropout(0.5),
-            nn.Linear(512, 10)
-        )
-
-    def forward(self, x):
-        x = self.features(x)
-        x = x.view(x.size(0), -1)
-        x = self.classifier(x)
-        return x
-
-net = ImprovedNet()
-net.to(device)
-
-# Initialize gradient scaler for mixed precision training
-scaler = GradScaler()
-
-# Loss function and optimizer with improved settings
-criterion = nn.CrossEntropyLoss()
-optimizer = optim.Adam(net.parameters(), lr=0.001, weight_decay=1e-4)
-scheduler = ReduceLROnPlateau(optimizer, mode='min', factor=0.1, patience=3, verbose=True)
-
-# Training with early stopping and mixed precision
-def train_epoch(model, loader, criterion, optimizer, scaler):
-    model.train()
-    running_loss = 0.0
-    correct = 0
-    total = 0
-    
-    for inputs, labels in loader:
-        inputs, labels = inputs.to(device), labels.to(device)
-        
-        optimizer.zero_grad()
-        
-        # Mixed precision training
-        with autocast():
-            outputs = model(inputs)
-            loss = criterion(outputs, labels)
-        
-        # Scale loss and perform backward pass
-        scaler.scale(loss).backward()
-        scaler.step(optimizer)
-        scaler.update()
-        
-        running_loss += loss.item()
-        _, predicted = outputs.max(1)
-        total += labels.size(0)
-        correct += predicted.eq(labels).sum().item()
-    
-    return running_loss / len(loader), 100. * correct / total
-
-def validate(model, loader, criterion):
-    model.eval()
-    running_loss = 0.0
-    correct = 0
-    total = 0
-    
-    with torch.no_grad():
-        for inputs, labels in loader:
-            inputs, labels = inputs.to(device), labels.to(device)
-            with autocast():
-                outputs = model(inputs)
-                loss = criterion(outputs, labels)
-            
-            running_loss += loss.item()
-            _, predicted = outputs.max(1)
-            total += labels.size(0)
-            correct += predicted.eq(labels).sum().item()
-    
-    return running_loss / len(loader), 100. * correct / total
-
-# Training loop with early stopping
-best_acc = 0
-patience = 5
-patience_counter = 0
-epochs = 20
-
-print(f"\nStarting training on {device}...")
-start_time = time.time()
-
-for epoch in range(epochs):
-    epoch_start = time.time()
-    train_loss, train_acc = train_epoch(net, trainloader, criterion, optimizer, scaler)
-    val_loss, val_acc = validate(net, testloader, criterion)
-    epoch_time = time.time() - epoch_start
-    
-    # Learning rate scheduling
-    scheduler.step(val_loss)
-    
-    print(f'Epoch: {epoch+1}/{epochs} | Time: {epoch_time:.2f}s')
-    print(f'Train Loss: {train_loss:.4f} | Train Acc: {train_acc:.2f}%')
-    print(f'Val Loss: {val_loss:.4f} | Val Acc: {val_acc:.2f}%')
-    
-    # Save best model
-    if val_acc > best_acc:
-        best_acc = val_acc
-        torch.save({
-            'epoch': epoch,
-            'model_state_dict': net.state_dict(),
-            'optimizer_state_dict': optimizer.state_dict(),
-            'scheduler_state_dict': scheduler.state_dict(),
-            'best_acc': best_acc,
-        }, 'mnist_best.pth')
-        patience_counter = 0
-    else:
-        patience_counter += 1
-    
-    # Early stopping
-    if patience_counter >= patience:
-        print("\nEarly stopping triggered!")
-        break
-
-total_time = time.time() - start_time
-print(f'\nTraining completed in {total_time:.2f} seconds')
-
-# Load best model and evaluate
-checkpoint = torch.load('mnist_best.pth')
-net.load_state_dict(checkpoint['model_state_dict'])
-_, final_acc = validate(net, testloader, criterion)
-print(f'Best model accuracy on test set: {final_acc:.2f}%')
-
-# Print hardware utilization summary
-if device.type == 'cuda':
-    print(f'\nGPU Memory Usage:')
-    print(f'Allocated: {torch.cuda.memory_allocated(0) / 1024**2:.1f}MB')
-    print(f'Cached: {torch.cuda.memory_reserved(0) / 1024**2:.1f}MB')
-
-class ModelBenchmark:
-    def __init__(self, model, device):
-        self.model = model
-        self.device = device
-        self.results = []
-        
-    def log_metric(self, metric_name, value, metadata=None):
-        timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-        entry = {
-            'timestamp': timestamp,
-            'metric': metric_name,
-            'value': value,
-            'device': self.device.type,
-            'model_size': self.get_model_size(),
-            'metadata': metadata or {}
-        }
-        self.results.append(entry)
-        
-    def get_model_size(self):
-        param_size = 0
-        for param in self.model.parameters():
-            param_size += param.nelement() * param.element_size()
-        buffer_size = 0
-        for buffer in self.model.buffers():
-            buffer_size += buffer.nelement() * buffer.element_size()
-        return (param_size + buffer_size) / 1024  # Size in KB
-        
-    def save_results(self, filename='benchmark_results.csv'):
-        df = pd.DataFrame(self.results)
-        df.to_csv(filename, index=False)
-        print(f"Results saved to {filename}")
-
 def setup_device():
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     if device.type == 'cuda':
@@ -286,208 +380,75 @@ def get_data_loaders(batch_size, device):
     
     return trainloader, testloader
 
-def train_model(model, trainloader, testloader, device, args, benchmark):
-    criterion = nn.CrossEntropyLoss()
-    optimizer = optim.Adam(model.parameters(), lr=0.001, weight_decay=1e-4)
-    scheduler = ReduceLROnPlateau(optimizer, mode='min', factor=0.1, patience=3, verbose=True)
-    scaler = GradScaler()
-    
-    best_acc = 0
-    patience = 5
-    patience_counter = 0
-    
-    print(f"\nStarting training on {device}...")
-    start_time = time.time()
-    
-    for epoch in range(args.epochs):
-        epoch_start = time.time()
-        
-        # Training
-        model.train()
-        train_loss = 0.0
-        train_correct = 0
-        train_total = 0
-        
-        for inputs, labels in trainloader:
-            inputs, labels = inputs.to(device), labels.to(device)
-            optimizer.zero_grad()
-            
-            with autocast():
-                outputs = model(inputs)
-                loss = criterion(outputs, labels)
-            
-            scaler.scale(loss).backward()
-            scaler.step(optimizer)
-            scaler.update()
-            
-            train_loss += loss.item()
-            _, predicted = outputs.max(1)
-            train_total += labels.size(0)
-            train_correct += predicted.eq(labels).sum().item()
-        
-        train_loss = train_loss / len(trainloader)
-        train_acc = 100. * train_correct / train_total
-        
-        # Validation
-        val_loss, val_acc = validate(model, testloader, criterion)
-        epoch_time = time.time() - epoch_start
-        
-        scheduler.step(val_loss)
-        
-        print(f'Epoch: {epoch+1}/{args.epochs} | Time: {epoch_time:.2f}s')
-        print(f'Train Loss: {train_loss:.4f} | Train Acc: {train_acc:.2f}%')
-        print(f'Val Loss: {val_loss:.4f} | Val Acc: {val_acc:.2f}%')
-        
-        benchmark.log_metric('epoch_time', epoch_time, {
-            'epoch': epoch + 1,
-            'train_loss': train_loss,
-            'train_acc': train_acc,
-            'val_loss': val_loss,
-            'val_acc': val_acc
-        })
-        
-        if val_acc > best_acc:
-            best_acc = val_acc
-            save_checkpoint(model, optimizer, scheduler, epoch, best_acc)
-            patience_counter = 0
-        else:
-            patience_counter += 1
-        
-        if patience_counter >= patience:
-            print("\nEarly stopping triggered!")
-            break
-    
-    total_time = time.time() - start_time
-    print(f'\nTraining completed in {total_time:.2f} seconds')
-    benchmark.log_metric('total_training_time', total_time)
-    
-    return model
-
-def save_checkpoint(model, optimizer, scheduler, epoch, best_acc):
-    torch.save({
-        'epoch': epoch,
-        'model_state_dict': model.state_dict(),
-        'optimizer_state_dict': optimizer.state_dict(),
-        'scheduler_state_dict': scheduler.state_dict(),
-        'best_acc': best_acc,
-    }, 'mnist_best.pth')
-
-def load_checkpoint(model, device):
-    checkpoint = torch.load('mnist_best.pth')
-    model.load_state_dict(checkpoint['model_state_dict'])
-    return model
-
-def quantize_model(model):
-    print("\nQuantizing model...")
-    quantized_model = quantize_dynamic(
-        model, {nn.Linear, nn.Conv2d}, dtype=torch.qint8
-    )
-    return quantized_model
-
-def prune_model(model, amount):
-    print(f"\nPruning model by {amount*100}%...")
-    parameters_to_prune = []
-    for name, module in model.named_modules():
-        if isinstance(module, (nn.Linear, nn.Conv2d)):
-            parameters_to_prune.append((module, 'weight'))
-    
-    pruner = L1Unstructured(amount=amount)
-    pruner.apply(model, parameters_to_prune)
-    return model
-
-def benchmark_inference(model, testloader, device, benchmark):
-    print("\nRunning inference benchmark...")
-    model.eval()
-    
-    # Warmup
-    for _ in range(10):
-        inputs, _ = next(iter(testloader))
-        inputs = inputs.to(device)
-        with torch.no_grad():
-            _ = model(inputs)
-    
-    # Benchmark
-    total_time = 0
-    total_samples = 0
-    
-    with torch.no_grad():
-        for inputs, _ in testloader:
-            inputs = inputs.to(device)
-            batch_size = inputs.size(0)
-            
-            start_time = time.time()
-            _ = model(inputs)
-            batch_time = time.time() - start_time
-            
-            total_time += batch_time
-            total_samples += batch_size
-            
-            # Log per-batch metrics
-            benchmark.log_metric('inference_time_per_batch', batch_time, {
-                'batch_size': batch_size,
-                'samples_per_second': batch_size / batch_time
-            })
-    
-    avg_time_per_sample = total_time / total_samples
-    samples_per_second = total_samples / total_time
-    
-    print(f"Average inference time per sample: {avg_time_per_sample*1000:.2f}ms")
-    print(f"Samples per second: {samples_per_second:.2f}")
-    
-    benchmark.log_metric('inference_throughput', samples_per_second)
-    benchmark.log_metric('avg_inference_time', avg_time_per_sample)
-
 def main():
-    args = parse_args()
-    device = setup_device()
-    
-    # Create model and benchmark instance
-    model = ImprovedNet().to(device)
-    benchmark = ModelBenchmark(model, device)
-    
-    if args.mode == 'train':
+    """Main training loop with comprehensive error handling and logging."""
+    try:
+        # Parse arguments
+        args = parse_args()
+        
+        # Setup device
+        device = setup_device()
+        
+        # Create checkpoint directory
+        Path('checkpoints').mkdir(exist_ok=True)
+        
+        # Initialize tensorboard
+        writer = SummaryWriter('runs/mnist_experiment')
+        
+        # Load data
         trainloader, testloader = get_data_loaders(args.batch_size, device)
-        model = train_model(model, trainloader, testloader, device, args, benchmark)
         
-        if args.quantize:
-            model = quantize_model(model)
-            benchmark.log_metric('model_size_after_quantization', benchmark.get_model_size())
+        # Initialize model
+        model = AdvancedNet().to(device)
         
-        if args.prune:
-            model = prune_model(model, args.prune_amount)
-            benchmark.log_metric('model_size_after_pruning', benchmark.get_model_size())
-    
-    elif args.mode == 'inference':
-        model = load_checkpoint(model, device)
-        _, testloader = get_data_loaders(args.batch_size, device)
+        # Initialize trainer
+        config = TrainingConfig(
+            batch_size=args.batch_size,
+            epochs=args.epochs
+        )
+        trainer = ModelTrainer(model, config, device, writer)
         
-        if args.quantize:
-            model = quantize_model(model)
-        if args.prune:
-            model = prune_model(model, args.prune_amount)
+        # Training loop
+        for epoch in range(args.epochs):
+            logger.info(f'\nEpoch {epoch+1}/{args.epochs}')
+            
+            # Train
+            train_loss, train_acc = trainer.train_epoch(trainloader)
+            logger.info(f'Train Loss: {train_loss:.4f} | Train Acc: {train_acc:.2f}%')
+            
+            # Validate
+            val_loss, val_acc = trainer.validate(testloader)
+            logger.info(f'Val Loss: {val_loss:.4f} | Val Acc: {val_acc:.2f}%')
+            
+            # Update learning rate
+            trainer.scheduler.step()
+            
+            # Save checkpoint
+            is_best = val_acc > trainer.best_acc
+            if is_best:
+                trainer.best_acc = val_acc
+                trainer.patience_counter = 0
+            else:
+                trainer.patience_counter += 1
+            
+            trainer.save_checkpoint(epoch, is_best)
+            
+            # Early stopping
+            if trainer.patience_counter >= config.early_stopping_patience:
+                logger.info('Early stopping triggered!')
+                break
         
-        benchmark_inference(model, testloader, device, benchmark)
-    
-    elif args.mode == 'benchmark':
-        model = load_checkpoint(model, device)
-        _, testloader = get_data_loaders(args.batch_size, device)
+        # Save final model
+        trainer.save_checkpoint(args.epochs - 1)
         
-        # Benchmark original model
-        print("\nBenchmarking original model...")
-        benchmark_inference(model, testloader, device, benchmark)
+        # Close tensorboard writer
+        writer.close()
         
-        # Benchmark quantized model
-        quantized_model = quantize_model(model)
-        print("\nBenchmarking quantized model...")
-        benchmark_inference(quantized_model, testloader, device, benchmark)
+        logger.info('Training completed successfully!')
         
-        # Benchmark pruned model
-        pruned_model = prune_model(model, args.prune_amount)
-        print("\nBenchmarking pruned model...")
-        benchmark_inference(pruned_model, testloader, device, benchmark)
-    
-    # Save benchmark results
-    benchmark.save_results()
+    except Exception as e:
+        logger.error(f'An error occurred during training: {str(e)}', exc_info=True)
+        raise
 
 if __name__ == '__main__':
     main()
