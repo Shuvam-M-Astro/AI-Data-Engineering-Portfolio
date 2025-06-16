@@ -489,9 +489,6 @@ def main():
         )
         trainer = ModelTrainer(model, config, device, writer)
         
-        # Training loop
-        for epoch in range(args.epochs):
-            logger.info(f'\nEpoch {epoch+1}/{args.epochs}')
         if args.mode == 'train':
             # Training loop
             for epoch in range(args.epochs):
@@ -523,9 +520,6 @@ def main():
                     logger.info('Early stopping triggered!')
                     break
             
-            # Train
-            train_loss, train_acc = trainer.train_epoch(trainloader)
-            logger.info(f'Train Loss: {train_loss:.4f} | Train Acc: {train_acc:.2f}%')
             # Apply quantization if requested
             if args.quantize:
                 logger.info("Applying model quantization...")
@@ -553,12 +547,6 @@ def main():
             if args.quantize:
                 model = quantize_model(model)
             
-            # Early stopping
-            if trainer.patience_counter >= config.early_stopping_patience:
-                logger.info('Early stopping triggered!')
-                break
-        
-        # Save final model
         trainer.save_checkpoint(args.epochs - 1)
             # Apply pruning if requested
             if args.prune:
