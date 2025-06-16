@@ -560,6 +560,33 @@ def main():
         
         # Save final model
         trainer.save_checkpoint(args.epochs - 1)
+            # Apply pruning if requested
+            if args.prune:
+                model = prune_model(model, args.prune_amount)
+            
+            logger.info("Model loaded and ready for inference")
+            
+            # Perform batch inference on test set
+            predictions, labels, accuracy = batch_inference(model, testloader, device)
+            logger.info(f'Test Accuracy: {accuracy:.2f}%')
+            
+            # Log detailed metrics
+            if writer:
+                writer.add_scalar('Inference/Accuracy', accuracy)
+                writer.add_pr_curve('Inference/PR_Curve', torch.tensor(predictions), torch.tensor(labels))
+            
+            # Save inference results
+            results = {
+                'predictions': predictions,
+                'labels': labels,
+                'accuracy': accuracy,
+                'timestamp': datetime.now().isoformat()
+            }
+            
+            with open('inference_results.json', 'w') as f:
+                json.dump(results, f, indent=4)
+            
+            logger.info("Inference results saved to inference_results.json")
         
         # Close tensorboard writer
         writer.close()
