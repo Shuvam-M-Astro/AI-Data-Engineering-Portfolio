@@ -492,27 +492,66 @@ def main():
         # Training loop
         for epoch in range(args.epochs):
             logger.info(f'\nEpoch {epoch+1}/{args.epochs}')
+        if args.mode == 'train':
+            # Training loop
+            for epoch in range(args.epochs):
+                logger.info(f'\nEpoch {epoch+1}/{args.epochs}')
+                
+                # Train
+                train_loss, train_acc = trainer.train_epoch(trainloader)
+                logger.info(f'Train Loss: {train_loss:.4f} | Train Acc: {train_acc:.2f}%')
+                
+                # Validate
+                val_loss, val_acc = trainer.validate(testloader)
+                logger.info(f'Val Loss: {val_loss:.4f} | Val Acc: {val_acc:.2f}%')
+                
+                # Update learning rate
+                trainer.scheduler.step()
+                
+                # Save checkpoint
+                is_best = val_acc > trainer.best_acc
+                if is_best:
+                    trainer.best_acc = val_acc
+                    trainer.patience_counter = 0
+                else:
+                    trainer.patience_counter += 1
+                
+                trainer.save_checkpoint(epoch, is_best)
+                
+                # Early stopping
+                if trainer.patience_counter >= config.early_stopping_patience:
+                    logger.info('Early stopping triggered!')
+                    break
             
             # Train
             train_loss, train_acc = trainer.train_epoch(trainloader)
             logger.info(f'Train Loss: {train_loss:.4f} | Train Acc: {train_acc:.2f}%')
+            # Apply quantization if requested
+            if args.quantize:
+                logger.info("Applying model quantization...")
+                model = quantize_model(model)
+                trainer.model = model
+                trainer.save_checkpoint(args.epochs - 1, is_best=True)
             
-            # Validate
-            val_loss, val_acc = trainer.validate(testloader)
-            logger.info(f'Val Loss: {val_loss:.4f} | Val Acc: {val_acc:.2f}%')
+            # Apply pruning if requested
+            if args.prune:
+                logger.info("Applying model pruning...")
+                model = prune_model(model, args.prune_amount)
+                trainer.model = model
+                trainer.save_checkpoint(args.epochs - 1, is_best=True)
             
-            # Update learning rate
-            trainer.scheduler.step()
+            # Save final model
+            trainer.save_checkpoint(args.epochs - 1)
             
-            # Save checkpoint
-            is_best = val_acc > trainer.best_acc
-            if is_best:
-                trainer.best_acc = val_acc
-                trainer.patience_counter = 0
-            else:
-                trainer.patience_counter += 1
+        elif args.mode == 'inference':
+            # Load the best model
+            checkpoint = torch.load('checkpoints/best_model.pth')
+            model.load_state_dict(checkpoint['model_state_dict'])
+            model.eval()
             
-            trainer.save_checkpoint(epoch, is_best)
+            # Apply quantization if requested
+            if args.quantize:
+                model = quantize_model(model)
             
             # Early stopping
             if trainer.patience_counter >= config.early_stopping_patience:
@@ -525,10 +564,10 @@ def main():
         # Close tensorboard writer
         writer.close()
         
-        logger.info('Training completed successfully!')
+        logger.info('Process completed successfully!')
         
     except Exception as e:
-        logger.error(f'An error occurred during training: {str(e)}', exc_info=True)
+        logger.error(f'An error occurred: {str(e)}', exc_info=True)
         raise
 
 if __name__ == '__main__':
