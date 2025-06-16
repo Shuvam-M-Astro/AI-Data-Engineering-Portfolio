@@ -547,7 +547,6 @@ def main():
             if args.quantize:
                 model = quantize_model(model)
             
-        trainer.save_checkpoint(args.epochs - 1)
             # Apply pruning if requested
             if args.prune:
                 model = prune_model(model, args.prune_amount)
