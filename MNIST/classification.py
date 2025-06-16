@@ -380,6 +380,87 @@ def get_data_loaders(batch_size, device):
     
     return trainloader, testloader
 
+def quantize_model(model: nn.Module) -> nn.Module:
+    """Quantize the model to reduce its size and improve inference speed."""
+    logger.info("Quantizing model...")
+    try:
+        # Prepare model for quantization
+        model.eval()
+        
+        # Quantize the model
+        quantized_model = quantize_dynamic(
+            model,
+            {nn.Linear, nn.Conv2d},  # Specify layers to quantize
+            dtype=torch.qint8
+        )
+        
+        logger.info("Model quantization completed successfully")
+        return quantized_model
+    except Exception as e:
+        logger.error(f"Error during model quantization: {str(e)}")
+        return model
+
+def prune_model(model: nn.Module, amount: float = 0.3) -> nn.Module:
+    """Prune the model to reduce its size while maintaining performance."""
+    logger.info(f"Pruning model with amount: {amount}")
+    try:
+        # Create pruner
+        pruner = L1Unstructured(
+            amount=amount,
+            module_type=nn.Conv2d
+        )
+        
+        # Prepare model for pruning
+        model.eval()
+        
+        # Apply pruning
+        pruner.prepare(model)
+        pruner.step()
+        pruner.squash_mask()
+        
+        logger.info("Model pruning completed successfully")
+        return model
+    except Exception as e:
+        logger.error(f"Error during model pruning: {str(e)}")
+        return model
+
+def inference(model: nn.Module, image: torch.Tensor, device: torch.device) -> Tuple[int, torch.Tensor]:
+    """Perform inference on a single image."""
+    model.eval()
+    with torch.no_grad():
+        # Move image to device and add batch dimension
+        image = image.unsqueeze(0).to(device)
+        
+        # Get prediction
+        outputs = model(image)
+        probabilities = torch.nn.functional.softmax(outputs, dim=1)
+        predicted = outputs.argmax(dim=1)
+        
+        return predicted.item(), probabilities[0]
+
+def batch_inference(model: nn.Module, dataloader: torch.utils.data.DataLoader, device: torch.device) -> Tuple[List[int], List[int], float]:
+    """Perform inference on a batch of images."""
+    model.eval()
+    all_preds = []
+    all_labels = []
+    correct = 0
+    total = 0
+    
+    with torch.no_grad():
+        for images, labels in tqdm(dataloader, desc='Inference'):
+            images, labels = images.to(device), labels.to(device)
+            outputs = model(images)
+            _, predicted = outputs.max(1)
+            
+            total += labels.size(0)
+            correct += predicted.eq(labels).sum().item()
+            
+            all_preds.extend(predicted.cpu().numpy())
+            all_labels.extend(labels.cpu().numpy())
+    
+    accuracy = 100. * correct / total
+    return all_preds, all_labels, accuracy
+
 def main():
     """Main training loop with comprehensive error handling and logging."""
     try:
