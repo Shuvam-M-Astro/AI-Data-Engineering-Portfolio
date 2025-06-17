@@ -29,6 +29,10 @@ A collection of machine learning projects implementing various algorithms and te
 - **MLOps**: End-to-end ML pipeline with MLflow and DVC
 - **ModelServing**: FastAPI-based model serving with authentication
 
+### Bayesian Modeling
+- **CLV_Bayesian**: Bayesian regression for Customer Lifetime Value prediction using the UCI Online Retail dataset
+- **Churn_Bayesian**: Bayesian logistic regression for customer churn prediction using the Telco Customer Churn dataset
+
 ## Getting Started
 
 1. Clone the repository
