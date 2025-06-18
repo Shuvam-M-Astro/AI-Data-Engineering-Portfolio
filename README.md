@@ -33,6 +33,9 @@ A collection of machine learning projects implementing various algorithms and te
 - **CLV_Bayesian**: Bayesian regression for Customer Lifetime Value prediction using the UCI Online Retail dataset
 - **Churn_Bayesian**: Bayesian logistic regression for customer churn prediction using the Telco Customer Churn dataset
 
+### RPA
+- **IMDb RPA Sentiment Analysis**: RPA automation to scrape IMDb's most popular movies and perform sentiment analysis on user reviews
+
 ## Getting Started
 
 1. Clone the repository
