@@ -29,6 +29,7 @@ from dataclasses import asdict
 import argparse
 from tqdm import tqdm
 import warnings
+from scipy import stats
 warnings.filterwarnings('ignore')
 
 # Import local modules
@@ -385,6 +386,9 @@ class ABTestRunner:
         """Generate a summary report of all results."""
         df = pd.DataFrame(results)
         
+        # Calculate statistical significance
+        stats_analysis = self.calculate_statistical_significance(results)
+        
         # Group by configuration and calculate statistics
         summary = df.groupby('config_name').agg({
             'best_accuracy': ['mean', 'std', 'min', 'max'],
@@ -403,7 +407,7 @@ Total Configurations: {len(df['config_name'].unique())}
 Total Runs: {len(df)}
 Date: {time.strftime('%Y-%m-%d %H:%M:%S')}
 
-Top 5 Configurations by Mean Accuracy:
+Top 5 Configurations by Mean Accuracy (with 95% Confidence Intervals):
 """
         
         for i, (config_name, row) in enumerate(summary.head().iterrows(), 1):
@@ -414,12 +418,21 @@ Top 5 Configurations by Mean Accuracy:
             avg_epochs = row[('final_epoch', 'mean')]
             early_stops = row[('early_stopped', 'sum')]
             
+            # Get confidence interval
+            ci_data = stats_analysis['confidence_intervals'][config_name]
+            ci_lower = ci_data['ci_lower']
+            ci_upper = ci_data['ci_upper']
+            power = ci_data['statistical_power']
+            sufficient_power = ci_data['sufficient_power']
+            
             report += f"""
 {i}. {config_name}
    Mean Accuracy: {mean_acc:.4f} ± {std_acc:.4f}
+   Confidence Interval: [{ci_lower:.4f}, {ci_upper:.4f}]
    Range: {min_acc:.4f} - {max_acc:.4f}
    Avg Epochs: {avg_epochs:.1f}
    Early Stops: {early_stops}/{self.config.num_runs_per_config}
+   Statistical Power: {power:.3f} {'✓' if sufficient_power else '✗'}
 """
         
         # Factor analysis
@@ -443,7 +456,81 @@ Top 5 Configurations by Mean Accuracy:
         for scheduler, (mean_acc, std_acc) in scheduler_analysis.iterrows():
             report += f"  {scheduler}: {mean_acc:.4f} ± {std_acc:.4f}\n"
         
+        # Statistical significance summary
+        significant_pairs = [k for k, v in stats_analysis['pairwise_tests'].items() if v['significant']]
+        report += f"\nStatistical Significance Summary:\n"
+        report += f"Significant differences found: {len(significant_pairs)}/{len(stats_analysis['pairwise_tests'])} pairwise comparisons\n"
+        
+        if significant_pairs:
+            report += "Significant pairs (p < 0.05):\n"
+            for pair in significant_pairs[:5]:  # Show top 5
+                test_data = stats_analysis['pairwise_tests'][pair]
+                report += f"  {pair}: p={test_data['p_value']:.4f}, effect_size={test_data['effect_size']:.3f}\n"
+        
         return report
+
+    def calculate_statistical_significance(self, results: List[Dict[str, Any]]) -> Dict[str, Any]:
+        """Calculate statistical significance and confidence intervals for all configurations."""
+        df = pd.DataFrame(results)
+        configs = df['config_name'].unique()
+        
+        significance_results = {}
+        
+        # Calculate confidence intervals for each configuration
+        for config in configs:
+            config_data = df[df['config_name'] == config]['best_accuracy'].values
+            mean_acc = np.mean(config_data)
+            std_acc = np.std(config_data, ddof=1)
+            n_samples = len(config_data)
+            
+            # Calculate 95% confidence interval
+            t_value = stats.t.ppf(0.975, n_samples - 1)
+            margin_of_error = t_value * (std_acc / np.sqrt(n_samples))
+            ci_lower = mean_acc - margin_of_error
+            ci_upper = mean_acc + margin_of_error
+            
+            # Calculate statistical power (assuming 80% power threshold)
+            effect_size = 0.5  # Medium effect size
+            alpha = 0.05
+            power = stats.power.ttest_power(effect_size, n_samples, alpha)
+            
+            significance_results[config] = {
+                'mean_accuracy': mean_acc,
+                'std_accuracy': std_acc,
+                'n_samples': n_samples,
+                'ci_lower': ci_lower,
+                'ci_upper': ci_upper,
+                'margin_of_error': margin_of_error,
+                'statistical_power': power,
+                'sufficient_power': power >= 0.8
+            }
+        
+        # Perform pairwise significance tests
+        pairwise_tests = {}
+        for i, config1 in enumerate(configs):
+            for config2 in configs[i+1:]:
+                acc1 = df[df['config_name'] == config1]['best_accuracy'].values
+                acc2 = df[df['config_name'] == config2]['best_accuracy'].values
+                
+                t_stat, p_value = stats.ttest_ind(acc1, acc2)
+                
+                # Calculate effect size (Cohen's d)
+                pooled_std = np.sqrt(((len(acc1) - 1) * np.var(acc1, ddof=1) + 
+                                     (len(acc2) - 1) * np.var(acc2, ddof=1)) / (len(acc1) + len(acc2) - 2))
+                cohens_d = (np.mean(acc1) - np.mean(acc2)) / pooled_std
+                
+                pairwise_tests[f"{config1}_vs_{config2}"] = {
+                    't_statistic': t_stat,
+                    'p_value': p_value,
+                    'significant': p_value < 0.05,
+                    'effect_size': cohens_d,
+                    'mean_difference': np.mean(acc1) - np.mean(acc2)
+                }
+        
+        return {
+            'confidence_intervals': significance_results,
+            'pairwise_tests': pairwise_tests
+        }
 
 def main():
     """Main function to run A/B testing."""
@@ -476,6 +563,13 @@ def main():
         
         # Save final results
         runner.save_results(results, "final_results.json")
+        
+        # Save statistical analysis
+        stats_analysis = runner.calculate_statistical_significance(results)
+        stats_file = runner.output_dir / "statistical_analysis.json"
+        with open(stats_file, 'w') as f:
+            json.dump(stats_analysis, f, indent=4, default=str)
+        logger.info(f"Statistical analysis saved to {stats_file}")
         
         # Generate and save summary report
         report = runner.generate_summary_report(results)
