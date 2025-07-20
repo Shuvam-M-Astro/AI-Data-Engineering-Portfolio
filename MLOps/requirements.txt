@@ -1,13 +1,12 @@
+# MLOps specific requirements
+# Common dependencies are in ../requirements-common.txt
+
+# Project-specific dependencies
 mlflow==2.8.1
 dvc==3.30.1
-fastapi==0.109.0
-uvicorn==0.27.0
-pydantic==2.5.3
-python-multipart==0.0.6
-scikit-learn==1.3.0
-pandas==2.1.3
-numpy==1.24.3
 pytest==7.4.3
 black==23.11.0
 flake8==6.1.0
-mypy==1.7.1 
+mypy==1.7.1
+
+# Install common requirements with: pip install -r ../requirements-common.txt 
