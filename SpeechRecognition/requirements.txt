@@ -1,9 +1,10 @@
-torch==2.1.0
+# SpeechRecognition specific requirements
+# Common dependencies are in ../requirements-common.txt
+
+# Project-specific dependencies
 torchaudio==2.1.0
-transformers==4.35.0
 datasets==2.14.5
 librosa==0.10.1
 soundfile==0.12.1
-numpy==1.24.3
-tqdm==4.65.0
-scipy==1.11.3 
+
+# Install common requirements with: pip install -r ../requirements-common.txt 
