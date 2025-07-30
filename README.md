@@ -1,4 +1,4 @@
-# Simple ML Portfolio
+# AI / Data Engineering Portfolio
 
 A collection of machine learning projects implementing various algorithms and techniques on popular datasets. This portfolio has been optimized to reduce redundancy and improve maintainability.
 
