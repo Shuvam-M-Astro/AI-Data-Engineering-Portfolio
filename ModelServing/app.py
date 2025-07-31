@@ -33,7 +33,7 @@ app.add_middleware(
 )
 
 # Security configuration
-SECRET_KEY = os.getenv("SECRET_KEY", "your-secret-key")
+SECRET_KEY = os.getenv("SECRET_KEY", "demo-secret-key-change-in-production")
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 30
 
@@ -75,11 +75,11 @@ class UserInDB(User):
 
 # Mock user database
 fake_users_db = {
-    "testuser": {
-        "username": "testuser",
-        "full_name": "Test User",
-        "email": "test@example.com",
-        "hashed_password": pwd_context.hash("testpassword"),
+    "demo_user": {
+        "username": "demo_user",
+        "full_name": "Demo User",
+        "email": "demo@example.com",
+        "hashed_password": pwd_context.hash("demo_password"),
         "disabled": False,
     }
 }
