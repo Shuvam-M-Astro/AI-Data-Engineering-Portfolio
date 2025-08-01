@@ -1,7 +1,0 @@
-# LangChain specific requirements
-# Common dependencies are in ../requirements-common.txt
-
-# Project-specific dependencies
-# (LangChain dependencies are already in common requirements)
-
-# Install common requirements with: pip install -r ../requirements-common.txt 

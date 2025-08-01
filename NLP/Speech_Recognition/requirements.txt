@@ -1,0 +1,10 @@
+# SpeechRecognition specific requirements
+# Common dependencies are in ../requirements-common.txt
+
+# Project-specific dependencies
+torchaudio==2.1.0
+datasets==2.14.5
+librosa==0.10.1
+soundfile==0.12.1
+
+# Install common requirements with: pip install -r ../requirements-common.txt 

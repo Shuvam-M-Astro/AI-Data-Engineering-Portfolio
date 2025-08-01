@@ -1,118 +1,121 @@
-# AI / Data Engineering Portfolio
+# AI Data Engineering Portfolio
 
-A collection of machine learning projects implementing various algorithms and techniques on popular datasets. This portfolio has been optimized to reduce redundancy and improve maintainability.
-
-## 🚀 Quick Start
-
-1. **Clone the repository**
-```bash
-git clone https://github.com/[username]/Simple-ML-Portfolio.git
-cd Simple-ML-Portfolio
-```
-
-2. **Run the setup script**
-```bash
-python setup.py
-```
-
-3. **Activate the virtual environment**
-```bash
-# Windows
-venv\Scripts\activate
-
-# Linux/Mac
-source venv/bin/activate
-```
-
-4. **Navigate to any project and run it**
-```bash
-cd MNIST
-python classification.py
-```
+A comprehensive collection of machine learning and data engineering projects organized by use cases and domains.
 
 ## 📁 Project Structure
 
-### 🤖 Core ML Projects
-- **MNIST**: Handwritten digit recognition with A/B testing framework
-- **CIFAR-10**: Image classification with CNN architectures
-- **IRIS**: Classic flower classification dataset
-- **Titanic**: Survival prediction using passenger data
+### 🎯 Classification
+- **Image Classification**
+  - [CIFAR-10](./Classification/Image_Classification/CIFAR-10/) - CNN-based image classification
+  - [MNIST](./Classification/Image_Classification/MNIST/) - Handwritten digit recognition with AB testing
+  - [AIR](./Classification/Image_Classification/AIR/) - Advanced image recognition
 
-### 📊 Advanced ML
-- **AIR**: Air quality prediction
-- **Bayesian Modelling**: Bayesian approaches for CLV and churn prediction
+- **Text Classification**
+  - [IMDB](./Classification/Text_Classification/IMDB/) - Sentiment analysis on movie reviews
 
-### 🧠 AI & NLP
-- **IMDB_Consolidated**: Sentiment analysis (Traditional ML + RPA scraping)
-- **LangChain**: Chatbot implementation with tools and memory
-- **RAG**: Retrieval Augmented Generation system for document-based QA
+- **Tabular Classification**
+  - [IRIS](./Classification/Tabular_Classification/IRIS/) - Flower species classification
+  - [Titanic](./Classification/Tabular_Classification/Titanic/) - Survival prediction
 
-### 🔊 Audio Processing
-- **SpeechRecognition**: Speech-to-text using Whisper model
+### 🤖 NLP (Natural Language Processing)
+- **Text Generation**
+  - [LangChain](./NLP/Text_Generation/LangChain/) - Chatbot implementation
 
-### ⚙️ MLOps & Deployment
-- **MLOps**: End-to-end ML pipeline with MLflow and DVC
-- **ModelServing**: FastAPI-based model serving with authentication
+- **Sentiment Analysis**
+  - [RPA Sentiment Analysis](./NLP/Sentiment_Analysis/RPA_Sentiment_Analysis/) - Automated sentiment analysis
 
-## 🛠️ Project Optimizations
+- **Question Answering**
+  - [RAG](./NLP/Question_Answering/RAG/) - Retrieval-Augmented Generation system
 
-### ✅ Completed Improvements
-- **Removed empty directories**: `Churn_Bayesian/` and `CLV_Bayesian/`
-- **Consolidated dependencies**: Created `requirements-common.txt` with shared packages
-- **Merged IMDB projects**: Combined traditional ML and RPA approaches
-- **Created shared utilities**: `shared_utils/` for common classification tasks
-- **Simplified requirements**: Each project now only includes specific dependencies
+- **Speech Recognition**
+  - [SpeechRecognition](./NLP/Speech_Recognition/) - Audio processing and speech recognition
 
-### 📦 Dependency Management
-- **Common dependencies**: Core ML libraries (numpy, pandas, scikit-learn, etc.)
-- **Project-specific**: Only unique dependencies per project
-- **Version flexibility**: Using `>=` for better compatibility
+### 🔧 MLOps
+- **Model Serving**
+  - [ModelServing](./MLOps/Model_Serving/) - FastAPI-based model deployment
 
-## 🧩 Shared Components
+- **Pipelines**
+  - [MLOps Pipelines](./MLOps/Pipelines/) - End-to-end ML pipeline implementation
 
-### `shared_utils/classification_utils.py`
-Common utilities for all classification projects:
-- Data preprocessing
-- Model evaluation
-- Visualization tools
-- Results saving
+- **AB Testing**
+  - [MNIST AB Testing](./MLOps/AB_Testing/MNIST_AB_Testing/) - A/B testing framework for ML models
 
-### `requirements-common.txt`
-Shared dependencies across projects:
-- Core ML libraries
-- Visualization tools
-- Web frameworks
-- Development tools
+### ⚡ Optimization
+- **Bayesian Modelling**
+  - [Bayesian Modelling](./Optimization/Bayesian_Modelling/) - Bayesian analysis for churn prediction and CLV
 
-## 🎯 Technologies Used
+- **Pruning**
+  - [Model Pruning](./Optimization/Pruning/) - Neural network pruning techniques
 
-- **Core ML**: scikit-learn, TensorFlow, PyTorch
-- **Data Processing**: pandas, numpy, scipy
-- **Visualization**: matplotlib, seaborn, plotly
-- **Modern AI**: LangChain, Transformers, Whisper
-- **MLOps**: MLflow, DVC, FastAPI
-- **Web Scraping**: Selenium, BeautifulSoup
+- **Benchmarking**
+  - [Performance Benchmarking](./Optimization/Benchmarking/) - Model performance evaluation
 
-## 📈 Benefits of Optimization
+## 🚀 Quick Start
 
-1. **Reduced Redundancy**: Eliminated duplicate dependencies and empty directories
-2. **Easier Maintenance**: Centralized common utilities and dependencies
-3. **Faster Setup**: Single setup script installs all dependencies
-4. **Better Organization**: Clear separation between common and project-specific code
-5. **Improved Collaboration**: Shared utilities reduce code duplication
+### Prerequisites
+```bash
+pip install -r requirements-common.txt
+```
+
+### Running Projects
+Each project directory contains its own `requirements.txt` and instructions. Navigate to any project folder and follow the README.
+
+## 📊 Project Highlights
+
+### Image Classification
+- **CIFAR-10**: CNN implementation with data augmentation
+- **MNIST**: Comprehensive AB testing framework
+- **AIR**: Advanced image recognition techniques
+
+### Text Analysis
+- **IMDB**: Sentiment analysis with preprocessing
+- **RPA**: Automated sentiment analysis pipeline
+- **LangChain**: Modern chatbot implementation
+
+### MLOps
+- **Model Serving**: Production-ready API with authentication
+- **Pipelines**: Scalable ML pipeline architecture
+- **AB Testing**: Statistical framework for model comparison
+
+### Optimization
+- **Bayesian Analysis**: Uncertainty quantification for business problems
+- **Pruning**: Model compression techniques
+- **Benchmarking**: Performance evaluation frameworks
+
+## 🛠️ Technologies Used
+
+- **Machine Learning**: Scikit-learn, TensorFlow, PyTorch
+- **Deep Learning**: CNN, RNN, Transformers
+- **NLP**: NLTK, spaCy, LangChain
+- **MLOps**: FastAPI, Docker, MLflow
+- **Optimization**: Bayesian inference, model pruning
+- **Visualization**: Matplotlib, Seaborn, Plotly
+
+## 📈 Key Features
+
+- **Modular Design**: Each project is self-contained
+- **Production Ready**: Includes deployment and serving capabilities
+- **Best Practices**: Follows ML engineering standards
+- **Documentation**: Comprehensive READMEs and comments
+- **Testing**: Unit tests and validation frameworks
 
 ## 🤝 Contributing
 
 1. Fork the repository
 2. Create a feature branch
-3. Make your changes
-4. Test with the setup script
+3. Add your project to the appropriate category
+4. Update the main README
 5. Submit a pull request
 
-## 📝 Notes
+## 📝 License
 
-- All projects now use the shared utilities where applicable
-- Dependencies are managed centrally with project-specific additions
-- The setup script handles virtual environment creation and dependency installation
-- Empty directories have been removed to reduce clutter
+This project is licensed under the MIT License - see the LICENSE file for details.
+
+## 📞 Contact
+
+For questions or contributions, please open an issue or submit a pull request.
+
+---
+
+**Note**: This portfolio demonstrates various aspects of AI/ML engineering including classification, NLP, MLOps, and optimization techniques. Each project is designed to be educational and production-ready.
 

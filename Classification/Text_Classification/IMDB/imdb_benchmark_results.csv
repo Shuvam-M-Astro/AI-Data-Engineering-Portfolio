@@ -1,0 +1,3 @@
+timestamp,metric,value,device,model_size,metadata
+2025-07-31 11:07:22,training_time,0.008500099182128906,CPU,0,{}
+2025-07-31 11:07:22,accuracy,0.8558,CPU,0,{}

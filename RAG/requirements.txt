@@ -1,8 +1,0 @@
-# RAG specific requirements
-# Common dependencies are in ../requirements-common.txt
-
-# Project-specific dependencies
-pypdf==3.17.1
-sentence-transformers==2.2.2
-
-# Install common requirements with: pip install -r ../requirements-common.txt 

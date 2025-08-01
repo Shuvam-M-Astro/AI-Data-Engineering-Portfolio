@@ -1,0 +1,9 @@
+# CIFAR-10 specific requirements
+# Common dependencies are in ../requirements-common.txt
+
+# Project-specific dependencies
+torch==2.1.0
+torchvision==0.16.0
+pillow==10.0.0
+
+# Install common requirements with: pip install -r ../requirements-common.txt 
