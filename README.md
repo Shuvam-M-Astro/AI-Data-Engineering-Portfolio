@@ -12,9 +12,10 @@ A comprehensive collection of machine learning and data engineering projects org
 
 - **Text Classification**
   - [IMDB](./Classification/Text_Classification/IMDB/) - Sentiment analysis on movie reviews
+  - [IMDB Consolidated](./Classification/Text_Classification/IMDB_Consolidated/) - Advanced sentiment analysis with RPA
 
 - **Tabular Classification**
-  - [IRIS](./Classification/Tabular_Classification/IRIS/) - Flower species classification
+  - [IRIS](./Classification/Tabular_Classification/IRIS/) - Flower species classification with pruning optimization
   - [Titanic](./Classification/Tabular_Classification/Titanic/) - Survival prediction
 
 ### 🤖 NLP (Natural Language Processing)
