@@ -255,6 +255,22 @@ pip install -r requirements-common.txt
 ### Running Projects
 Each project directory contains its own `requirements.txt` and instructions. Navigate to any project folder and follow the README.
 
+### Unified Runner (Config-driven)
+Use the unified runner to execute experiments with a single entrypoint and config.
+
+```bash
+python runner/run.py --config configs/customer_segmentation.yaml
+```
+
+### Reproducibility
+This repo now supports project-wide reproducibility via a single global seed.
+
+- Set the seed in your config (example already in `configs/customer_segmentation.yaml`):
+  ```yaml
+  seed: 42
+  ```
+- The runner applies this seed across Python, NumPy, and PyTorch for deterministic behavior where supported.
+
 ## 📊 Project Highlights
 
 ### Image Classification

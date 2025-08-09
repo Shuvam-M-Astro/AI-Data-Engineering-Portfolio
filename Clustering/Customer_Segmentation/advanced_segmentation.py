@@ -42,8 +42,11 @@ class AdvancedCustomerSegmentation:
         self.results = {}
         
     def generate_sample_data(self, n_customers=1000):
-        """Generate enhanced sample customer data."""
-        np.random.seed(42)
+        """Generate enhanced sample customer data.
+
+        Note: Reproducibility is controlled by the project's global seed
+        via shared_utils.reproducibility.set_global_seed.
+        """
         
         # Generate more diverse customer data
         customer_data = {
@@ -270,8 +273,13 @@ class AdvancedCustomerSegmentation:
         
         return self.models
     
-    def visualize_algorithm_comparison(self):
-        """Create comprehensive visualization comparing algorithms."""
+    def visualize_algorithm_comparison(self, save_path=None, show=True):
+        """Create comprehensive visualization comparing algorithms.
+
+        Args:
+            save_path (str | None): If provided, saves the interactive plot to this path (HTML).
+            show (bool): If True, display the figure in an interactive window.
+        """
         fig = make_subplots(
             rows=2, cols=2,
             subplot_titles=('Algorithm Comparison', 'Silhouette Scores',
@@ -319,7 +327,15 @@ class AdvancedCustomerSegmentation:
             showlegend=True
         )
         
-        fig.show()
+        # Save and/or show plot
+        if save_path is not None:
+            try:
+                fig.write_html(save_path)
+            except Exception:
+                pass
+        if show and save_path is None:
+            # Avoid double rendering when saving
+            fig.show()
     
     def create_advanced_profiles(self, features):
         """Create advanced customer profiles with detailed insights."""
@@ -545,3 +561,132 @@ def main():
 
 if __name__ == "__main__":
     main() 
+
+# =============================
+# Config-driven experiment entry
+# =============================
+def run_experiment(cfg):
+    """Run the advanced segmentation experiment using a config-driven setup.
+
+    Expected cfg structure (OmegaConf/Dict):
+        cfg.task: "advanced_segmentation"
+        cfg.mlflow.experiment_name: str
+        cfg.advanced_segmentation.n_customers: int
+        cfg.advanced_segmentation.max_clusters: int
+        cfg.advanced_segmentation.features: List[str]
+        cfg.advanced_segmentation.artifacts.model_path: str
+        cfg.advanced_segmentation.artifacts.profiles_path: str
+        cfg.advanced_segmentation.artifacts.comparison_plot_path: str
+        cfg.advanced_segmentation.artifacts.models_summary_path: str
+    """
+    import os
+    import json
+    from pathlib import Path
+    
+    try:
+        import mlflow
+    except Exception:
+        mlflow = None
+
+    # Initialize model
+    segmentation = AdvancedCustomerSegmentation()
+
+    # Generate and enrich data
+    n_customers = int(cfg.advanced_segmentation.get('n_customers', 1000))
+    data = segmentation.generate_sample_data(n_customers=n_customers)
+    segmentation.add_advanced_features()
+
+    # Prepare features
+    features = list(cfg.advanced_segmentation.get('features', [
+        'age', 'income', 'spending_score', 'purchase_frequency',
+        'avg_order_value', 'total_purchases', 'online_visits',
+        'mobile_app_usage', 'customer_satisfaction', 'rfm_score',
+        'clv', 'engagement_score', 'risk_score'
+    ]))
+    segmentation.prepare_features(features)
+
+    # Train & compare algorithms
+    max_clusters = int(cfg.advanced_segmentation.get('max_clusters', 8))
+    models = segmentation.compare_algorithms(max_clusters=max_clusters)
+
+    # Prepare output paths (relative to current working directory, Hydra-friendly)
+    artifacts_cfg = cfg.advanced_segmentation.get('artifacts', {})
+    model_path = Path(artifacts_cfg.get('model_path', 'customer_segmentation_model.pkl'))
+    profiles_path = Path(artifacts_cfg.get('profiles_path', 'profiles.json'))
+    plot_path = Path(artifacts_cfg.get('comparison_plot_path', 'algorithm_comparison.html'))
+    models_summary_path = Path(artifacts_cfg.get('models_summary_path', 'models_summary.json'))
+
+    # Create directories if needed
+    for p in [model_path, profiles_path, plot_path, models_summary_path]:
+        p.parent.mkdir(parents=True, exist_ok=True)
+
+    # Save visualization to artifact
+    segmentation.visualize_algorithm_comparison(save_path=str(plot_path), show=False)
+
+    # Create profiles & save
+    profiles = segmentation.create_advanced_profiles(features)
+    with open(profiles_path, 'w', encoding='utf-8') as f:
+        json.dump(profiles, f, indent=2, default=str)
+
+    # Save model artifact
+    segmentation.save_model(filepath=str(model_path))
+
+    # Save models comparison summary
+    summary = {}
+    for alg, info in models.items():
+        summary[alg] = {
+            'score': float(info.get('score', -1)),
+            'params': info.get('params'),
+            'metrics': {
+                'silhouette_score': float(info['metrics'].get('silhouette_score', -1)),
+                'calinski_harabasz_score': float(info['metrics'].get('calinski_harabasz_score', -1)),
+                'davies_bouldin_score': float(info['metrics'].get('davies_bouldin_score', -1)),
+                'n_clusters': int(info['metrics'].get('n_clusters', 0)),
+            }
+        }
+    with open(models_summary_path, 'w', encoding='utf-8') as f:
+        json.dump(summary, f, indent=2)
+
+    # Optional: MLflow logging
+    if mlflow is not None:
+        try:
+            # Set experiment if provided
+            try:
+                exp_name = cfg.get('mlflow', {}).get('experiment_name', None)
+            except Exception:
+                exp_name = None
+            if exp_name:
+                try:
+                    mlflow.set_experiment(exp_name)
+                except Exception:
+                    pass
+
+            run_name = f"advanced_segmentation_{segmentation.best_algorithm}"
+            mlflow.start_run(run_name=run_name)
+
+            # Params
+            mlflow.log_param('n_customers', n_customers)
+            mlflow.log_param('max_clusters', max_clusters)
+            mlflow.log_param('features', ','.join(features))
+            mlflow.log_param('best_algorithm', segmentation.best_algorithm)
+            if segmentation.best_params is not None:
+                for k, v in segmentation.best_params.items():
+                    mlflow.log_param(f"best_params.{k}", v)
+
+            # Metrics (best algorithm)
+            best_metrics = models[segmentation.best_algorithm]['metrics']
+            mlflow.log_metric('silhouette_score', float(best_metrics['silhouette_score']))
+            mlflow.log_metric('calinski_harabasz_score', float(best_metrics['calinski_harabasz_score']))
+            mlflow.log_metric('davies_bouldin_score', float(best_metrics['davies_bouldin_score']))
+            mlflow.log_metric('n_clusters', int(best_metrics['n_clusters']))
+
+            # Artifacts
+            mlflow.log_artifact(str(model_path))
+            mlflow.log_artifact(str(profiles_path))
+            mlflow.log_artifact(str(plot_path))
+            mlflow.log_artifact(str(models_summary_path))
+        finally:
+            try:
+                mlflow.end_run()
+            except Exception:
+                pass

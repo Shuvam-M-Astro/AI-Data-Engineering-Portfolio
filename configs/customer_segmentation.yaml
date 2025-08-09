@@ -1,0 +1,31 @@
+# Base config for advanced customer segmentation experiments
+
+task: advanced_segmentation
+
+mlflow:
+  experiment_name: "CustomerSegmentation"
+
+seed: 42
+
+advanced_segmentation:
+  n_customers: 1000
+  max_clusters: 8
+  features:
+    - age
+    - income
+    - spending_score
+    - purchase_frequency
+    - avg_order_value
+    - total_purchases
+    - online_visits
+    - mobile_app_usage
+    - customer_satisfaction
+    - rfm_score
+    - clv
+    - engagement_score
+    - risk_score
+  artifacts:
+    model_path: outputs/customer_segmentation/model.pkl
+    profiles_path: outputs/customer_segmentation/profiles.json
+    comparison_plot_path: outputs/customer_segmentation/algorithm_comparison.html
+    models_summary_path: outputs/customer_segmentation/models_summary.json

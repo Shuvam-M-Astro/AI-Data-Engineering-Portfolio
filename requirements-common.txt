@@ -19,6 +19,7 @@ tqdm>=4.62.0
 pillow>=10.0.0
 pathlib2>=2.3.0
 pyyaml>=6.0
+omegaconf>=2.3.0
 
 # Web framework (for API projects)
 fastapi>=0.109.0
