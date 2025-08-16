@@ -6,20 +6,23 @@ from langchain.document_loaders import PyPDFLoader, TextLoader
 from langchain.prompts import PromptTemplate
 import os
 from dotenv import load_dotenv
+import logging
 
-# Load environment variables
+# Load environment variables and configure logging
 load_dotenv()
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 class RAGSystem:
     def __init__(self):
         # Initialize the language model
         self.llm = ChatOpenAI(
-            temperature=0.7,
-            model_name="gpt-3.5-turbo"
+            temperature=0.0,
+            model_name=os.getenv("OPENAI_MODEL", "gpt-4o-mini")
         )
         
         # Initialize embeddings
-        self.embeddings = OpenAIEmbeddings()
+        self.embeddings = OpenAIEmbeddings(model=os.getenv("OPENAI_EMBED_MODEL", "text-embedding-3-small"))
         
         # Initialize text splitter
         self.text_splitter = RecursiveCharacterTextSplitter(
@@ -35,6 +38,8 @@ class RAGSystem:
     
     def load_document(self, file_path):
         """Load document from file"""
+        if not os.path.exists(file_path):
+            raise FileNotFoundError(f"File not found: {file_path}")
         if file_path.endswith('.pdf'):
             loader = PyPDFLoader(file_path)
         elif file_path.endswith('.txt'):
@@ -54,13 +59,10 @@ class RAGSystem:
         self.vector_store = FAISS.from_documents(texts, self.embeddings)
         
         # Create QA chain
-        prompt_template = """Use the following pieces of context to answer the question at the end. 
-        If you don't know the answer, just say that you don't know, don't try to make up an answer.
-        
-        Context: {context}
-        
-        Question: {question}
-        Answer:"""
+        prompt_template = (
+            "You are a helpful assistant. Use the context to answer the question. "
+            "If unsure, say you don't know.\n\nContext: {context}\n\nQuestion: {question}\nAnswer:"
+        )
         
         PROMPT = PromptTemplate(
             template=prompt_template, input_variables=["context", "question"]
@@ -78,12 +80,16 @@ class RAGSystem:
         """Query the RAG system"""
         if not self.qa_chain:
             return "Please load and process documents first."
-        
-        result = self.qa_chain({"query": question})
-        return {
-            "answer": result["result"],
-            "sources": [doc.page_content for doc in result["source_documents"]]
-        }
+
+        try:
+            result = self.qa_chain({"query": question})
+            return {
+                "answer": result["result"],
+                "sources": [doc.page_content for doc in result.get("source_documents", [])]
+            }
+        except Exception as e:
+            logger.error(f"RAG query error: {e}")
+            return {"answer": "An error occurred while processing the query.", "sources": []}
 
 def main():
     # Initialize RAG system
@@ -95,7 +101,9 @@ def main():
     
     # Load and process documents
     try:
-        documents = rag.load_document("example.pdf")  # Replace with your document
+        # Replace with your document path or set DOC_PATH env var
+        doc_path = os.getenv("DOC_PATH", "example.pdf")
+        documents = rag.load_document(doc_path)
         rag.process_documents(documents)
         print("Documents processed successfully.")
     except Exception as e:
