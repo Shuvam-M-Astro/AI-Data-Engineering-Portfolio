@@ -40,13 +40,18 @@ ACCESS_TOKEN_EXPIRE_MINUTES = 30
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
 
-# Load model
-try:
-    model = joblib.load("model/model.joblib")
-    logger.info("Model loaded successfully")
-except Exception as e:
-    logger.error(f"Error loading model: {str(e)}")
-    model = None
+def _load_model_once():
+    try:
+        model_path = os.getenv("MODEL_PATH", "model/model.joblib")
+        loaded = joblib.load(model_path)
+        logger.info(f"Model loaded successfully from {model_path}")
+        return loaded
+    except Exception as e:
+        logger.error(f"Error loading model: {str(e)}")
+        return None
+
+# Load model at startup
+model = _load_model_once()
 
 # Pydantic models
 class PredictionInput(BaseModel):
@@ -190,6 +195,7 @@ async def health_check():
     return {
         "status": "healthy",
         "model_loaded": model is not None,
+        "model_path": os.getenv("MODEL_PATH", "model/model.joblib"),
         "timestamp": datetime.utcnow()
     }
 
