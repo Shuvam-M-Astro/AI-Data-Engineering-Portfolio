@@ -18,17 +18,19 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
 from sklearn.preprocessing import MinMaxScaler
-from sklearn.metrics import mean_squared_error, mean_absolute_error
+from sklearn.metrics import mean_squared_error, mean_absolute_error, r2_score, mean_absolute_percentage_error
 import yfinance as yf
 import tensorflow as tf
 from tensorflow.keras.models import Sequential
 from tensorflow.keras.layers import LSTM, Dense, Dropout
 from tensorflow.keras.optimizers import Adam
+from tensorflow.keras.callbacks import EarlyStopping, ReduceLROnPlateau, ModelCheckpoint
+import random
 import warnings
 warnings.filterwarnings('ignore')
 
 class StockPricePredictor:
-    def __init__(self, symbol='AAPL', start_date='2020-01-01', end_date='2024-01-01'):
+    def __init__(self, symbol='AAPL', start_date='2020-01-01', end_date='2024-01-01', seed: int = 42):
         """
         Initialize the stock price predictor.
         
@@ -44,11 +46,22 @@ class StockPricePredictor:
         self.scaler = MinMaxScaler()
         self.model = None
         self.history = None
+        self.seed = seed
+
+        # Reproducibility
+        random.seed(self.seed)
+        np.random.seed(self.seed)
+        tf.random.set_seed(self.seed)
         
     def fetch_data(self):
         """Fetch stock data using yfinance."""
         print(f"Fetching data for {self.symbol}...")
-        self.data = yf.download(self.symbol, start=self.start_date, end=self.end_date)
+        self.data = yf.download(self.symbol, start=self.start_date, end=self.end_date, progress=False)
+        # Basic cleaning and ordering
+        if not self.data.empty:
+            self.data = self.data[~self.data.index.duplicated(keep='first')]
+            self.data.sort_index(inplace=True)
+            self.data = self.data.ffill().bfill()
         print(f"Data shape: {self.data.shape}")
         return self.data
     
@@ -98,23 +111,26 @@ class StockPricePredictor:
         
         # Remove NaN values
         data_clean = self.data[features].dropna()
-        
-        # Scale the data
-        scaled_data = self.scaler.fit_transform(data_clean)
-        
+
+        # Fit scaler on training portion only to avoid leakage
+        num_rows = len(data_clean)
+        split_index = int(0.8 * num_rows)
+        self.scaler.fit(data_clean.iloc[:split_index])
+        scaled_all = self.scaler.transform(data_clean)
+
         # Create sequences
         X, y = [], []
-        for i in range(lookback, len(scaled_data)):
-            X.append(scaled_data[i-lookback:i])
-            y.append(scaled_data[i, 0])  # Predict Close price
-        
+        for i in range(lookback, len(scaled_all)):
+            X.append(scaled_all[i-lookback:i])
+            y.append(scaled_all[i, 0])  # Predict Close price
+
         X, y = np.array(X), np.array(y)
-        
-        # Split into train and test sets
-        split = int(0.8 * len(X))
-        X_train, X_test = X[:split], X[split:]
-        y_train, y_test = y[:split], y[split:]
-        
+
+        # Align split with sequence indices
+        split_seq = max(1, split_index - lookback)
+        X_train, X_test = X[:split_seq], X[split_seq:]
+        y_train, y_test = y[:split_seq], y[split_seq:]
+
         return X_train, X_test, y_train, y_test, data_clean
     
     def build_model(self, lookback, n_features):
@@ -144,12 +160,19 @@ class StockPricePredictor:
         self.model = self.build_model(X_train.shape[1], X_train.shape[2])
         
         print("Training model...")
+        callbacks = [
+            EarlyStopping(monitor='val_loss', patience=10, restore_best_weights=True),
+            ReduceLROnPlateau(monitor='val_loss', patience=5, factor=0.5, min_lr=1e-6),
+            ModelCheckpoint('best_lstm.h5', monitor='val_loss', save_best_only=True)
+        ]
         self.history = self.model.fit(
             X_train, y_train,
             epochs=epochs,
             batch_size=batch_size,
             validation_split=0.1,
-            verbose=1
+            verbose=1,
+            shuffle=False,
+            callbacks=callbacks
         )
         return self.model
     
@@ -171,11 +194,15 @@ class StockPricePredictor:
         mse = mean_squared_error(y_test_original, y_pred_original)
         mae = mean_absolute_error(y_test_original, y_pred_original)
         rmse = np.sqrt(mse)
+        r2 = r2_score(y_test_original, y_pred_original)
+        mape = mean_absolute_percentage_error(y_test_original, y_pred_original)
         
         print(f"Mean Squared Error: {mse:.4f}")
         print(f"Mean Absolute Error: {mae:.4f}")
         print(f"Root Mean Squared Error: {rmse:.4f}")
-        
+        print(f"R2 Score: {r2:.4f}")
+        print(f"MAPE: {mape:.4f}")
+
         return y_pred_original, y_test_original, mse, mae, rmse
     
     def plot_results(self, y_pred, y_test, data_clean):
@@ -258,6 +285,13 @@ class StockPricePredictor:
 
 def main():
     """Main function to run the stock price prediction."""
+    # Configure TensorFlow GPU memory growth to avoid full allocation
+    try:
+        gpus = tf.config.list_physical_devices('GPU')
+        for gpu in gpus:
+            tf.config.experimental.set_memory_growth(gpu, True)
+    except Exception:
+        pass
     # Initialize predictor
     predictor = StockPricePredictor(symbol='AAPL')
     
