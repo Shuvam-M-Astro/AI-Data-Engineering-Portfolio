@@ -288,6 +288,21 @@ class DQNAgent:
         self.episode_rewards = []
         self.episode_lengths = []
         
+    def preprocess_state(self, state):
+        """
+        Convert observations to channel-first float32 in [0, 1].
+        """
+        state_array = np.array(state, copy=False)
+        if state_array.dtype != np.float32:
+            state_array = state_array.astype(np.float32)
+        # Scale pixel observations if likely in [0, 255]
+        if state_array.max() > 1.5:
+            state_array = state_array / 255.0
+        # Ensure channel-first: (C, H, W)
+        if state_array.ndim == 3 and state_array.shape[0] != self.state_shape[0]:
+            state_array = np.transpose(state_array, (2, 0, 1))
+        return state_array
+
     def select_action(self, state, training=True):
         """
         Select action using epsilon-greedy policy
@@ -307,8 +322,8 @@ class DQNAgent:
         if training and random.random() < self.epsilon:
             return random.randrange(self.n_actions)
         
-        with torch.no_grad():
-            state_tensor = torch.FloatTensor(state).unsqueeze(0).to(self.device)
+        with torch.inference_mode():
+            state_tensor = torch.FloatTensor(self.preprocess_state(state)).unsqueeze(0).to(self.device)
             q_values = self.policy_net(state_tensor)
             return q_values.argmax().item()
     
@@ -329,7 +344,9 @@ class DQNAgent:
         done : bool
             Whether episode is done
         """
-        self.replay_buffer.push(state, action, reward, next_state, done)
+        processed_state = self.preprocess_state(state)
+        processed_next_state = self.preprocess_state(next_state)
+        self.replay_buffer.push(processed_state, action, reward, processed_next_state, done)
     
     def train_step(self):
         """
@@ -354,15 +371,17 @@ class DQNAgent:
         done_batch = torch.BoolTensor(batch.done).to(self.device)
         
         # Compute current Q values
-        current_q_values = self.policy_net(state_batch).gather(1, action_batch.unsqueeze(1))
-        
-        # Compute next Q values
+        current_q_values = self.policy_net(state_batch).gather(1, action_batch.unsqueeze(1)).squeeze(1)
+
+        # Double DQN targets
         with torch.no_grad():
-            next_q_values = self.target_net(next_state_batch).max(1)[0]
-            target_q_values = reward_batch + (self.gamma * next_q_values * ~done_batch)
-        
-        # Compute loss
-        loss = F.mse_loss(current_q_values.squeeze(), target_q_values)
+            next_actions = self.policy_net(next_state_batch).argmax(dim=1, keepdim=True)
+            next_q_values = self.target_net(next_state_batch).gather(1, next_actions).squeeze(1)
+            not_done = (~done_batch).float()
+            target_q_values = reward_batch + (self.gamma * next_q_values * not_done)
+
+        # Huber loss for stability
+        loss = F.smooth_l1_loss(current_q_values, target_q_values)
         
         # Optimize
         self.optimizer.zero_grad()
@@ -424,11 +443,10 @@ class DQNAgent:
             episode_reward += reward
             episode_length += 1
             
-            # Update target network
+            # Step counter then (possibly) update target network
+            self.steps_done += 1
             if self.steps_done % self.target_update == 0:
                 self.update_target_network()
-            
-            self.steps_done += 1
             
             if done:
                 break
@@ -517,7 +535,7 @@ class AtariDQNTrainer:
     Trainer for DQN on Atari games
     """
     
-    def __init__(self, game_name='Pong', device='cpu'):
+    def __init__(self, game_name='Pong', device='cpu', seed: int = 42):
         """
         Initialize trainer
         
@@ -530,16 +548,33 @@ class AtariDQNTrainer:
         """
         self.game_name = game_name
         self.device = device
+        self.seed = seed
         
         # Create environment
         if ATARI_AVAILABLE:
             self.env = self._create_atari_env(game_name)
         else:
             self.env = SimulatedAtariEnvironment(game_name)
+        # Seeding for reproducibility
+        random.seed(self.seed)
+        np.random.seed(self.seed)
+        torch.manual_seed(self.seed)
+        if torch.cuda.is_available():
+            torch.cuda.manual_seed_all(self.seed)
+        try:
+            torch.backends.cudnn.deterministic = True
+            torch.backends.cudnn.benchmark = False
+        except Exception:
+            pass
+        try:
+            # Newer gym versions accept seed in reset
+            self.env.reset(seed=self.seed)
+        except Exception:
+            pass
         
         # Create agent
-        state_shape = self.env.observation_space
-        n_actions = self.env.action_space
+        state_shape = self._infer_state_shape()
+        n_actions = self._infer_n_actions()
         self.agent = DQNAgent(state_shape, n_actions, device)
         
         # Training history
@@ -564,9 +599,31 @@ class AtariDQNTrainer:
         """
         env = gym.make(f'{game_name}-v4')
         env = GrayScaleObservation(env)
-        env = ResizeObservation(env, 84)
+        env = ResizeObservation(env, (84, 84))
         env = FrameStack(env, 4)
         return env
+
+    def _infer_state_shape(self):
+        """
+        Return channel-first state shape (C, H, W) for both real and simulated envs.
+        """
+        if hasattr(self.env, 'observation_space') and hasattr(self.env.observation_space, 'shape'):
+            shape = self.env.observation_space.shape
+            if shape is None:
+                return (4, 84, 84)
+            # If channel-last (H, W, C), convert to (C, H, W)
+            if len(shape) == 3 and shape[0] != 4 and shape[-1] == 4:
+                return (4, shape[0], shape[1])
+            if len(shape) == 2:
+                return (4, shape[0], shape[1])
+            return shape if len(shape) == 3 else (4, 84, 84)
+        # Fallback for simulated env
+        return self.env.observation_space
+
+    def _infer_n_actions(self):
+        if hasattr(self.env, 'action_space') and hasattr(self.env.action_space, 'n'):
+            return self.env.action_space.n
+        return self.env.action_space
     
     def train(self, n_episodes=1000, eval_interval=100, save_interval=500):
         """
@@ -702,7 +759,8 @@ def main():
     print("=" * 50)
     
     # Create trainer
-    trainer = AtariDQNTrainer(game_name='Pong', device='cpu')
+    device = 'cuda' if torch.cuda.is_available() else 'cpu'
+    trainer = AtariDQNTrainer(game_name='Pong', device=device)
     
     # Train the agent
     print("Starting training...")
