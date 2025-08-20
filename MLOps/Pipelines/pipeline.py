@@ -10,6 +10,7 @@ import os
 import logging
 from typing import Dict, Any
 import json
+from shared_utils.reproducibility import set_global_seed
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -19,6 +20,11 @@ class MLPipeline:
     def __init__(self, experiment_name: str):
         self.experiment_name = experiment_name
         mlflow.set_experiment(experiment_name)
+        # deterministic default
+        try:
+            set_global_seed(42)
+        except Exception:
+            pass
         
     def load_data(self, data_path: str) -> pd.DataFrame:
         """Load data using DVC"""
