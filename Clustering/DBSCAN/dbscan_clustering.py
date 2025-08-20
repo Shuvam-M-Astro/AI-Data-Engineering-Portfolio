@@ -119,7 +119,7 @@ class DBSCANClustering:
         if eps is None:
             eps = self.find_optimal_eps(X, plot=False)
             
-        self.model = DBSCAN(eps=eps, min_samples=min_samples, metric=self.metric)
+        self.model = DBSCAN(eps=float(eps), min_samples=int(min_samples), metric=self.metric)
         self.labels = self.model.fit_predict(X)
         
         # Calculate statistics
