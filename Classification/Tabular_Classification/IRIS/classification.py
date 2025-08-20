@@ -11,6 +11,7 @@ from sklearn.model_selection import train_test_split
 from sklearn.metrics import accuracy_score, classification_report
 from sklearn.preprocessing import StandardScaler
 import joblib
+from shared_utils.reproducibility import set_global_seed
 
 def parse_args():
     parser = argparse.ArgumentParser(description='IRIS Classification with Advanced Features')
@@ -51,6 +52,11 @@ class ModelBenchmark:
         print(f"Results saved to {filename}")
 
 def setup_environment():
+    # deterministic baseline
+    try:
+        set_global_seed(42)
+    except Exception:
+        pass
     try:
         subprocess.check_output(["nvidia-smi", "-L"])
         device_type = "GPU"
