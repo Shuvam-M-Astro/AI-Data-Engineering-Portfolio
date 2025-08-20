@@ -13,6 +13,7 @@ import pandas as pd
 import argparse
 import os
 from datetime import datetime
+from shared_utils.reproducibility import set_global_seed, seed_worker, get_torch_generator
 
 def parse_args():
     parser = argparse.ArgumentParser(description='CIFAR-10 Classification with Advanced Features')
@@ -129,12 +130,27 @@ def get_data_loaders(batch_size, device):
     ])
 
     trainset = torchvision.datasets.CIFAR10(root='./data', train=True, download=True, transform=transform_train)
-    trainloader = torch.utils.data.DataLoader(trainset, batch_size=batch_size, shuffle=True,
-                                            pin_memory=True, num_workers=2 if device.type == 'cuda' else 0)
+    generator = get_torch_generator(42)
+    trainloader = torch.utils.data.DataLoader(
+        trainset,
+        batch_size=batch_size,
+        shuffle=True,
+        pin_memory=True,
+        num_workers=2 if device.type == 'cuda' else 0,
+        worker_init_fn=seed_worker,
+        generator=generator,
+    )
 
     testset = torchvision.datasets.CIFAR10(root='./data', train=False, download=True, transform=transform_test)
-    testloader = torch.utils.data.DataLoader(testset, batch_size=batch_size, shuffle=False,
-                                           pin_memory=True, num_workers=2 if device.type == 'cuda' else 0)
+    testloader = torch.utils.data.DataLoader(
+        testset,
+        batch_size=batch_size,
+        shuffle=False,
+        pin_memory=True,
+        num_workers=2 if device.type == 'cuda' else 0,
+        worker_init_fn=seed_worker,
+        generator=generator,
+    )
     
     return trainloader, testloader
 
@@ -311,6 +327,10 @@ def benchmark_inference(model, testloader, device, benchmark):
 
 def main():
     args = parse_args()
+    try:
+        set_global_seed(42)
+    except Exception:
+        pass
     device = setup_device()
     
     # Create model and benchmark instance
