@@ -25,6 +25,7 @@ from sklearn.linear_model import LogisticRegression
 from sklearn.svm import SVC
 import warnings
 warnings.filterwarnings('ignore')
+from shared_utils.reproducibility import set_global_seed
 
 class FraudDetectionSystem:
     """
@@ -52,7 +53,7 @@ class FraudDetectionSystem:
         pd.DataFrame
             Synthetic transaction data with fraud labels
         """
-        np.random.seed(42)
+        set_global_seed(42)
         
         # Transaction IDs
         transaction_ids = range(1, n_samples + 1)
