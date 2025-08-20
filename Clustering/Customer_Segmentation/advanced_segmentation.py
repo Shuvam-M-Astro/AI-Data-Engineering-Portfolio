@@ -27,6 +27,7 @@ import json
 import warnings
 from datetime import datetime
 warnings.filterwarnings('ignore')
+from shared_utils.reproducibility import set_global_seed
 
 class AdvancedCustomerSegmentation:
     def __init__(self):
@@ -48,6 +49,8 @@ class AdvancedCustomerSegmentation:
         via shared_utils.reproducibility.set_global_seed.
         """
         
+        # Ensure reproducibility via global seed helper
+        set_global_seed(42)
         # Generate more diverse customer data
         customer_data = {
             'customer_id': range(1, n_customers + 1),
