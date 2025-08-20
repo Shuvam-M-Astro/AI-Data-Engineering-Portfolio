@@ -155,7 +155,8 @@ class TSNEAnalysis:
                 random_state=self.random_state
             )
             
-            embedding = tsne_temp.fit_transform(X_scaled)
+            # fit only to compute KL divergence; embedding not used here
+            _ = tsne_temp.fit_transform(X_scaled)
             kl_divergences.append(tsne_temp.kl_divergence_)
         
         optimal_perplexity = perplexities[np.argmin(kl_divergences)]
