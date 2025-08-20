@@ -4,7 +4,9 @@ from sklearn.model_selection import train_test_split
 from sklearn.metrics import accuracy_score, classification_report
 from sklearn.impute import SimpleImputer
 import time
+from shared_utils.reproducibility import set_global_seed
 
+set_global_seed(42)
 start_time = time.time()
 
 # Load the dataset (replace 'titanic.csv' with the path to your Titanic dataset file)
