@@ -166,6 +166,7 @@ class PCAAnalysis:
         ax2.plot(components, self.cumulative_variance_ratio, 'bo-', linewidth=2)
         ax2.axhline(y=0.95, color='r', linestyle='--', label='95% Variance')
         ax2.axhline(y=0.99, color='g', linestyle='--', label='99% Variance')
+        ax2.set_ylim(0, 1.01)
         ax2.set_xlabel('Number of Components')
         ax2.set_ylabel('Cumulative Explained Variance Ratio')
         ax2.set_title('Cumulative Explained Variance')
