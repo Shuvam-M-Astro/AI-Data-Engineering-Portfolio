@@ -28,6 +28,7 @@ import json
 from typing import List, Tuple, Dict, Optional
 import warnings
 warnings.filterwarnings('ignore')
+from shared_utils.reproducibility import set_global_seed
 
 class YOLODetector:
     """
@@ -91,7 +92,7 @@ class YOLODetector:
         list
             List of RGB colors
         """
-        np.random.seed(42)
+        set_global_seed(42)
         colors = []
         for _ in range(len(self.class_names)):
             color = tuple(np.random.randint(0, 255, 3).tolist())
