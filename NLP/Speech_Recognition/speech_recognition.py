@@ -6,9 +6,15 @@ import soundfile as sf
 import numpy as np
 from tqdm import tqdm
 import os
+from shared_utils.reproducibility import set_global_seed
 
 class SpeechRecognizer:
     def __init__(self, model_name="openai/whisper-base"):
+        # deterministic torch if available
+        try:
+            set_global_seed(42)
+        except Exception:
+            pass
         self.device = "cuda" if torch.cuda.is_available() else "cpu"
         print(f"Using device: {self.device}")
         
