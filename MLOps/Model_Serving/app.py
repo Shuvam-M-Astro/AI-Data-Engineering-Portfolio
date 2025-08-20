@@ -190,6 +190,10 @@ async def predict(
             detail="Error making prediction"
         )
 
+@app.on_event("startup")
+async def _log_startup():
+    logger.info("Model Serving API started")
+
 @app.get("/health")
 async def health_check():
     return {
