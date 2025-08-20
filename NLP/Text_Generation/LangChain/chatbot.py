@@ -5,6 +5,7 @@ from langchain.prompts import PromptTemplate
 from langchain.tools import Tool
 from langchain.agents import initialize_agent, AgentType
 import os
+import math
 from dotenv import load_dotenv
 
 # Load environment variables
@@ -25,11 +26,25 @@ class LangChainChatbot:
         )
         
         # Create tools
+        def safe_calculator(expr: str) -> str:
+            """Safely evaluate simple math expressions without eval vulnerabilities."""
+            allowed_names = {k: getattr(math, k) for k in dir(math) if not k.startswith("_")}
+            allowed_names.update({"abs": abs, "round": round})
+            try:
+                code = compile(expr, "<calc>", "eval")
+                for name in code.co_names:
+                    if name not in allowed_names:
+                        return "Disallowed identifier in expression"
+                result = eval(code, {"__builtins__": {}}, allowed_names)
+                return str(result)
+            except Exception as e:
+                return f"Calculation error: {e}"
+
         self.tools = [
             Tool(
                 name="Calculator",
-                func=lambda x: eval(x),
-                description="Useful for performing calculations"
+                func=safe_calculator,
+                description="Safe calculator for basic math and common functions (sin, cos, log, etc.)"
             ),
             Tool(
                 name="Search",
