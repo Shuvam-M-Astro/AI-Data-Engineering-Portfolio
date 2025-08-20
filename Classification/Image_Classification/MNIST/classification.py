@@ -20,6 +20,7 @@ from pathlib import Path
 import json
 from dataclasses import dataclass
 from tqdm import tqdm
+from shared_utils.reproducibility import set_global_seed, seed_worker, get_torch_generator
 
 # Configure logging
 logging.basicConfig(
@@ -305,8 +306,10 @@ def parse_args():
     parser.add_argument('--epochs', type=int, default=20, help='Number of epochs for training')
     return parser.parse_args()
 
-# Set random seed for reproducibility
-torch.manual_seed(42)
+try:
+    set_global_seed(42)
+except Exception:
+    torch.manual_seed(42)
 
 # Decide whether to use multiple cores or a single core
 use_multiple_cores = False  # Set to False to use a single core
@@ -338,12 +341,27 @@ transform_test = transforms.Compose([
 
 # Load datasets with improved transforms and pin memory for faster GPU transfer
 trainset = torchvision.datasets.MNIST(root='./data', train=True, download=True, transform=transform_train)
-trainloader = torch.utils.data.DataLoader(trainset, batch_size=128, shuffle=True, 
-                                        pin_memory=True, num_workers=2 if device.type == 'cuda' else 0)
+_generator = get_torch_generator(42)
+trainloader = torch.utils.data.DataLoader(
+    trainset,
+    batch_size=128,
+    shuffle=True,
+    pin_memory=True,
+    num_workers=2 if device.type == 'cuda' else 0,
+    worker_init_fn=seed_worker,
+    generator=_generator,
+)
 
 testset = torchvision.datasets.MNIST(root='./data', train=False, download=True, transform=transform_test)
-testloader = torch.utils.data.DataLoader(testset, batch_size=128, shuffle=False,
-                                       pin_memory=True, num_workers=2 if device.type == 'cuda' else 0)
+testloader = torch.utils.data.DataLoader(
+    testset,
+    batch_size=128,
+    shuffle=False,
+    pin_memory=True,
+    num_workers=2 if device.type == 'cuda' else 0,
+    worker_init_fn=seed_worker,
+    generator=_generator,
+)
 
 def setup_device():
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
