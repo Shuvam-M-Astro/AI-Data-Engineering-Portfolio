@@ -26,6 +26,7 @@ import os
 from typing import List, Tuple, Dict, Optional
 import warnings
 warnings.filterwarnings('ignore')
+from shared_utils.reproducibility import set_global_seed
 
 # For Atari environments (if gym is available)
 try:
@@ -35,6 +36,12 @@ try:
 except ImportError:
     ATARI_AVAILABLE = False
     print("Warning: gym not available. Using simulated environment.")
+
+# Global seed for reproducibility in RL components
+try:
+    set_global_seed(42, deterministic_torch=True)
+except Exception:
+    pass
 
 # Experience replay buffer
 Experience = namedtuple('Experience', ('state', 'action', 'reward', 'next_state', 'done'))
