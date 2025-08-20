@@ -18,6 +18,9 @@ This project implements advanced customer segmentation using K-means clustering 
 - **Customer Profiles**: Detailed customer segment profiles
 - **Marketing Strategies**: Automated marketing strategy recommendations
 
+### Reproducibility
+- The scripts leverage `shared_utils.reproducibility.set_global_seed` to provide deterministic behavior across NumPy and PyTorch when available. Call this helper at the start of new scripts for consistent runs.
+
 ### Visualizations
 - PCA cluster visualization
 - Cluster size distribution
