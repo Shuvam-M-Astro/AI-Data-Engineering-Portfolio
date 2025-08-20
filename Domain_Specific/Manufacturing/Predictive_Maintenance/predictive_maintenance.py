@@ -24,6 +24,7 @@ from sklearn.metrics import mean_squared_error, mean_absolute_error, r2_score
 from sklearn.decomposition import PCA
 import warnings
 warnings.filterwarnings('ignore')
+from shared_utils.reproducibility import set_global_seed
 
 class PredictiveMaintenance:
     """
@@ -53,7 +54,7 @@ class PredictiveMaintenance:
         pd.DataFrame
             Synthetic sensor data with equipment health indicators
         """
-        np.random.seed(42)
+        set_global_seed(42)
         
         # Equipment IDs
         equipment_ids = np.random.choice(range(1, n_equipment + 1), n_samples)
