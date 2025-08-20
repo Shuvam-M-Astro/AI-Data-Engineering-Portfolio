@@ -26,6 +26,7 @@ import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 import warnings
 warnings.filterwarnings('ignore')
+from shared_utils.reproducibility import set_global_seed
 
 class CustomerSegmentation:
     def __init__(self):
@@ -44,7 +45,7 @@ class CustomerSegmentation:
         Args:
             n_customers (int): Number of customers to generate
         """
-        np.random.seed(42)
+        set_global_seed(42)
         
         # Generate customer data
         customer_data = {
