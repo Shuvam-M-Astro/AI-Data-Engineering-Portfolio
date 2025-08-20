@@ -9,6 +9,7 @@ from sklearn.preprocessing import StandardScaler, LabelEncoder
 import matplotlib.pyplot as plt
 import seaborn as sns
 from typing import Tuple, Optional, Dict, Any
+from shared_utils.reproducibility import set_global_seed
 import warnings
 warnings.filterwarnings('ignore')
 
@@ -56,6 +57,11 @@ class ClassificationUtils:
             label_encoder = None
         
         # Split data
+        # Ensure deterministic split and pre-processing
+        try:
+            set_global_seed(int(random_state))
+        except Exception:
+            pass
         X_train, X_test, y_train, y_test = train_test_split(
             X, y, test_size=test_size, random_state=random_state, stratify=y
         )
