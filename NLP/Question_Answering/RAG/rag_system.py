@@ -56,6 +56,9 @@ class RAGSystem:
         texts = self.text_splitter.split_documents(documents)
         
         # Create vector store
+        # Guard against empty docs
+        if not texts:
+            raise ValueError("No text chunks produced from documents. Check the loader or text splitter settings.")
         self.vector_store = FAISS.from_documents(texts, self.embeddings)
         
         # Create QA chain
