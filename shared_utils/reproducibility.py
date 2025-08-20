@@ -51,6 +51,38 @@ def set_global_seed(seed: int, deterministic_torch: bool = True) -> None:
     os.environ.setdefault("TOKENIZERS_PARALLELISM", "false")
 
 
-__all__ = ["set_global_seed"]
+def seed_worker(worker_id: int) -> None:
+    """Seed a PyTorch DataLoader worker process deterministically.
+
+    Uses the initial torch seed to derive a unique, reproducible worker seed
+    for NumPy and Python's random module.
+    """
+    try:
+        import torch  # type: ignore
+        worker_seed = torch.initial_seed() % 2**32
+    except Exception:
+        worker_seed = int(os.environ.get("PYTHONHASHSEED", "0")) % 2**32
+
+    try:
+        import numpy as np  # type: ignore
+        np.random.seed(worker_seed)
+    except Exception:
+        pass
+
+    random.seed(worker_seed)
+
+
+def get_torch_generator(seed: int):
+    """Return a torch.Generator seeded for deterministic DataLoader shuffling."""
+    try:
+        import torch  # type: ignore
+        g = torch.Generator()
+        g.manual_seed(seed)
+        return g
+    except Exception:
+        return None
+
+
+__all__ = ["set_global_seed", "seed_worker", "get_torch_generator"]
 
 
