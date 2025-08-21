@@ -1,5 +1,8 @@
 # AI Data Engineering Portfolio
 
+![CI](https://github.com/your-username/AI-Data-Engineering-Portfolio/actions/workflows/ci.yml/badge.svg)
+![License](https://img.shields.io/badge/license-MIT-green.svg)
+
 A comprehensive collection of machine learning and data engineering projects organized by use cases and domains.
 
 ## 📁 Project Structure
@@ -249,7 +252,19 @@ A comprehensive collection of machine learning and data engineering projects org
 
 ### Prerequisites
 ```bash
-pip install -r requirements-common.txt
+# Create and activate a virtual environment (Windows)
+python -m venv .venv
+.venv\\Scripts\\activate
+
+# Or on macOS/Linux
+# python -m venv .venv
+# source .venv/bin/activate
+
+# Install common + dev tooling
+pip install -r requirements.txt
+
+# (Optional) Install pre-commit hooks
+pre-commit install
 ```
 
 ### Running Projects
