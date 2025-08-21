@@ -1,0 +1,7 @@
+* text=auto eol=lf
+
+# Treat notebooks as text for diffs
+*.ipynb linguist-language=Jupyter Notebook
+
+# Ensure shell scripts use LF
+*.sh text eol=lf
