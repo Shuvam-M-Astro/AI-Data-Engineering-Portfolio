@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Setup script for Simple-ML-Portfolio project.
+Setup script for AI-Data-Engineering-Portfolio.
 Installs common dependencies and project-specific requirements.
 """
 
@@ -64,7 +64,7 @@ def create_environment():
 
 def main():
     """Main setup function."""
-    print("🚀 Setting up Simple-ML-Portfolio project...")
+    print("🚀 Setting up AI-Data-Engineering-Portfolio...")
     
     # Check if we're in the right directory
     if not os.path.exists("requirements-common.txt"):
