@@ -4,9 +4,9 @@ Setup script for AI-Data-Engineering-Portfolio.
 Installs common dependencies and project-specific requirements.
 """
 
+import os
 import subprocess
 import sys
-import os
 from pathlib import Path
 
 
@@ -28,21 +28,29 @@ def install_requirements():
     # Install common requirements first
     if not run_command("pip install -r requirements-common.txt", "Installing common dependencies"):
         return False
-    
+
     # Get all project directories
     project_dirs = [
-        "CIFAR-10", "RPA Sentiment Analysis", "LangChain", "RAG", 
-        "MLOps", "ModelServing", "SpeechRecognition", "MNIST",
-        "IMDB_Consolidated"
+        "CIFAR-10",
+        "RPA Sentiment Analysis",
+        "LangChain",
+        "RAG",
+        "MLOps",
+        "ModelServing",
+        "SpeechRecognition",
+        "MNIST",
+        "IMDB_Consolidated",
     ]
-    
+
     # Install project-specific requirements
     for project_dir in project_dirs:
         req_file = Path(project_dir) / "requirements.txt"
         if req_file.exists():
-            if not run_command(f"pip install -r {req_file}", f"Installing {project_dir} dependencies"):
+            if not run_command(
+                f"pip install -r {req_file}", f"Installing {project_dir} dependencies"
+            ):
                 return False
-    
+
     return True
 
 
@@ -65,15 +73,15 @@ def create_environment():
 def main():
     """Main setup function."""
     print("🚀 Setting up AI-Data-Engineering-Portfolio...")
-    
+
     # Check if we're in the right directory
     if not os.path.exists("requirements-common.txt"):
         print("❌ Please run this script from the project root directory")
         sys.exit(1)
-    
+
     # Create virtual environment
     create_environment()
-    
+
     # Install requirements
     if install_requirements():
         print("\n🎉 Setup completed successfully!")
@@ -98,4 +106,4 @@ def main():
 
 
 if __name__ == "__main__":
-    main() 
+    main()
