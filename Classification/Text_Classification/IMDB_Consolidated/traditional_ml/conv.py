@@ -1,8 +1,10 @@
 import os
-import pandas as pd
-import numpy as np
 import warnings
-warnings.filterwarnings('ignore')
+
+import numpy as np
+import pandas as pd
+
+warnings.filterwarnings("ignore")
 
 
 def convert_to_csv(data_dir, output_csv):
@@ -10,19 +12,19 @@ def convert_to_csv(data_dir, output_csv):
     sentiments = []
 
     try:
-        for sentiment in ['pos', 'neg']:
+        for sentiment in ["pos", "neg"]:
             directory = os.path.join(data_dir, sentiment)
             if not os.path.exists(directory):
                 print(f"Directory not found: {directory}")
                 return False
 
             for filename in os.listdir(directory):
-                if filename.endswith('.txt'):
-                    with open(os.path.join(directory, filename), 'r', encoding='utf8') as file:
+                if filename.endswith(".txt"):
+                    with open(os.path.join(directory, filename), "r", encoding="utf8") as file:
                         reviews.append(file.read())
-                        sentiments.append(1 if sentiment == 'pos' else 0)
+                        sentiments.append(1 if sentiment == "pos" else 0)
 
-        df = pd.DataFrame({'review': reviews, 'sentiment': sentiments})
+        df = pd.DataFrame({"review": reviews, "sentiment": sentiments})
         df.to_csv(output_csv, index=False)
         print(f"Successfully converted {len(df)} reviews to {output_csv}")
         return True
@@ -46,7 +48,7 @@ def create_sample_imdb_data(output_csv, n_samples=1000):
         "The character development was excellent and the pacing was perfect. A truly enjoyable experience.",
         "This film has everything: great acting, beautiful visuals, and an unforgettable story.",
         "I was completely immersed in this movie. The atmosphere and mood were perfectly captured.",
-        "A cinematic triumph that will be remembered for years to come."
+        "A cinematic triumph that will be remembered for years to come.",
     ]
 
     negative_reviews = [
@@ -59,7 +61,7 @@ def create_sample_imdb_data(output_csv, n_samples=1000):
         "The acting was wooden and the script was awful. This movie is a failure.",
         "I couldn't wait for this movie to end. It was painful to watch.",
         "The special effects were cheap and the story was poorly written. Avoid this film.",
-        "A complete waste of time and money. This movie should never have been made."
+        "A complete waste of time and money. This movie should never have been made.",
     ]
 
     reviews = []
@@ -79,7 +81,7 @@ def create_sample_imdb_data(output_csv, n_samples=1000):
     reviews = [reviews[i] for i in indices]
     sentiments = [sentiments[i] for i in indices]
 
-    df = pd.DataFrame({'review': reviews, 'sentiment': sentiments})
+    df = pd.DataFrame({"review": reviews, "sentiment": sentiments})
     df.to_csv(output_csv, index=False)
     print(f"Created synthetic dataset with {len(df)} reviews: {output_csv}")
     return True
@@ -87,11 +89,11 @@ def create_sample_imdb_data(output_csv, n_samples=1000):
 
 def main():
     possible_paths = [
-        './aclImdb/train',
-        './data/aclImdb/train',
-        './imdb/train',
-        './dataset/aclImdb/train',
-        './downloads/aclImdb/train'
+        "./aclImdb/train",
+        "./data/aclImdb/train",
+        "./imdb/train",
+        "./dataset/aclImdb/train",
+        "./downloads/aclImdb/train",
     ]
 
     train_success = False
@@ -101,33 +103,33 @@ def main():
         print(f"Trying path: {path}")
         if os.path.exists(path):
             print(f"Found training data at: {path}")
-            train_success = convert_to_csv(path, 'imdb_reviews_train.csv')
+            train_success = convert_to_csv(path, "imdb_reviews_train.csv")
             if train_success:
                 break
 
     for path in possible_paths:
-        test_path = path.replace('/train', '/test')
+        test_path = path.replace("/train", "/test")
         print(f"Trying test path: {test_path}")
         if os.path.exists(test_path):
             print(f"Found test data at: {test_path}")
-            test_success = convert_to_csv(test_path, 'imdb_reviews_test.csv')
+            test_success = convert_to_csv(test_path, "imdb_reviews_test.csv")
             if test_success:
                 break
 
     if not train_success:
         print("\nNo IMDB dataset found. Creating synthetic data for testing...")
-        create_sample_imdb_data('imdb_reviews_train.csv', n_samples=1000)
+        create_sample_imdb_data("imdb_reviews_train.csv", n_samples=1000)
 
     if not test_success:
         print("Creating synthetic test data...")
-        create_sample_imdb_data('imdb_reviews_test.csv', n_samples=200)
+        create_sample_imdb_data("imdb_reviews_test.csv", n_samples=200)
 
     print("\nConversion completed!")
-    if os.path.exists('imdb_reviews_train.csv'):
-        df_train = pd.read_csv('imdb_reviews_train.csv')
+    if os.path.exists("imdb_reviews_train.csv"):
+        df_train = pd.read_csv("imdb_reviews_train.csv")
         print(f"- imdb_reviews_train.csv ({len(df_train)} reviews)")
-    if os.path.exists('imdb_reviews_test.csv'):
-        df_test = pd.read_csv('imdb_reviews_test.csv')
+    if os.path.exists("imdb_reviews_test.csv"):
+        df_test = pd.read_csv("imdb_reviews_test.csv")
         print(f"- imdb_reviews_test.csv ({len(df_test)} reviews)")
 
 

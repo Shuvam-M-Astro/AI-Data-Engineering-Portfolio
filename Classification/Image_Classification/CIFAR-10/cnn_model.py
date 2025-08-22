@@ -1,12 +1,13 @@
+import matplotlib.pyplot as plt
+import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import torchvision
 import torchvision.transforms as transforms
 from torch.utils.data import DataLoader
-import matplotlib.pyplot as plt
-import numpy as np
 from tqdm import tqdm
+
 
 class CNN(nn.Module):
     def __init__(self):
@@ -29,60 +30,63 @@ class CNN(nn.Module):
         x = self.fc2(x)
         return x
 
+
 def load_data():
     # Data transformations
-    transform = transforms.Compose([
-        transforms.ToTensor(),
-        transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))
-    ])
+    transform = transforms.Compose(
+        [transforms.ToTensor(), transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))]
+    )
 
     # Load CIFAR-10 dataset
     trainset = torchvision.datasets.CIFAR10(
-        root='./data', train=True, download=True, transform=transform)
+        root="./data", train=True, download=True, transform=transform
+    )
     trainloader = DataLoader(trainset, batch_size=64, shuffle=True, num_workers=2)
 
     testset = torchvision.datasets.CIFAR10(
-        root='./data', train=False, download=True, transform=transform)
+        root="./data", train=False, download=True, transform=transform
+    )
     testloader = DataLoader(testset, batch_size=64, shuffle=False, num_workers=2)
 
-    classes = ('plane', 'car', 'bird', 'cat', 'deer',
-               'dog', 'frog', 'horse', 'ship', 'truck')
+    classes = ("plane", "car", "bird", "cat", "deer", "dog", "frog", "horse", "ship", "truck")
 
     return trainloader, testloader, classes
+
 
 def train_model(model, trainloader, criterion, optimizer, device, epochs=10):
     model.train()
     train_losses = []
-    
+
     for epoch in range(epochs):
         running_loss = 0.0
-        pbar = tqdm(trainloader, desc=f'Epoch {epoch+1}/{epochs}')
-        
+        pbar = tqdm(trainloader, desc=f"Epoch {epoch+1}/{epochs}")
+
         for i, data in enumerate(pbar):
             inputs, labels = data[0].to(device), data[1].to(device)
-            
+
             optimizer.zero_grad()
             outputs = model(inputs)
             loss = criterion(outputs, labels)
             loss.backward()
             optimizer.step()
-            
+
             running_loss += loss.item()
-            pbar.set_postfix({'loss': running_loss/(i+1)})
-        
+            pbar.set_postfix({"loss": running_loss / (i + 1)})
+
         epoch_loss = running_loss / len(trainloader)
         train_losses.append(epoch_loss)
-        print(f'Epoch {epoch+1} loss: {epoch_loss:.3f}')
-    
+        print(f"Epoch {epoch+1} loss: {epoch_loss:.3f}")
+
     return train_losses
+
 
 def evaluate_model(model, testloader, device):
     model.eval()
     correct = 0
     total = 0
-    class_correct = list(0. for i in range(10))
-    class_total = list(0. for i in range(10))
-    
+    class_correct = list(0.0 for i in range(10))
+    class_total = list(0.0 for i in range(10))
+
     with torch.no_grad():
         for data in testloader:
             images, labels = data[0].to(device), data[1].to(device)
@@ -90,25 +94,27 @@ def evaluate_model(model, testloader, device):
             _, predicted = torch.max(outputs, 1)
             total += labels.size(0)
             correct += (predicted == labels).sum().item()
-            
+
             c = (predicted == labels).squeeze()
             for i in range(len(labels)):
                 label = labels[i]
                 class_correct[label] += c[i].item()
                 class_total[label] += 1
-    
-    print(f'Accuracy on test set: {100 * correct / total:.2f}%')
+
+    print(f"Accuracy on test set: {100 * correct / total:.2f}%")
     for i in range(10):
-        print(f'Accuracy of {classes[i]}: {100 * class_correct[i] / class_total[i]:.2f}%')
+        print(f"Accuracy of {classes[i]}: {100 * class_correct[i] / class_total[i]:.2f}%")
+
 
 def plot_training_loss(train_losses):
     plt.figure(figsize=(10, 5))
     plt.plot(train_losses)
-    plt.title('Training Loss')
-    plt.xlabel('Epoch')
-    plt.ylabel('Loss')
-    plt.savefig('training_loss.png')
+    plt.title("Training Loss")
+    plt.xlabel("Epoch")
+    plt.ylabel("Loss")
+    plt.savefig("training_loss.png")
     plt.close()
+
 
 def main():
     # Set device
@@ -135,8 +141,9 @@ def main():
     plot_training_loss(train_losses)
 
     # Save model
-    torch.save(model.state_dict(), 'cifar10_cnn.pth')
+    torch.save(model.state_dict(), "cifar10_cnn.pth")
     print("\nModel saved as 'cifar10_cnn.pth'")
 
-if __name__ == '__main__':
-    main() 
+
+if __name__ == "__main__":
+    main()

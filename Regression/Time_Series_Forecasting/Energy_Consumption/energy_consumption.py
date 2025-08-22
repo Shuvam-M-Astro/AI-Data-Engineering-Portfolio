@@ -99,14 +99,34 @@ def train_and_evaluate(config: ForecastConfig) -> None:
 
 
 def parse_args() -> ForecastConfig:
-    parser = argparse.ArgumentParser(description="Energy consumption forecasting using lag features and RandomForest")
-    parser.add_argument("--data-csv", dest="data_csv", type=str, default=None, help="Path to input CSV")
-    parser.add_argument("--target-column", dest="target_column", type=str, default="value", help="Target column name")
-    parser.add_argument("--date-column", dest="date_column", type=str, default="date", help="Date column name")
-    parser.add_argument("--n-lags", dest="n_lags", type=int, default=48, help="Number of lag features")
-    parser.add_argument("--test-size", dest="test_size", type=int, default=336, help="Test set size (last N points)")
-    parser.add_argument("--n-estimators", dest="n_estimators", type=int, default=400, help="Number of trees in RF")
-    parser.add_argument("--max-depth", dest="max_depth", type=int, default=None, help="Max depth for RF")
+    parser = argparse.ArgumentParser(
+        description="Energy consumption forecasting using lag features and RandomForest"
+    )
+    parser.add_argument(
+        "--data-csv", dest="data_csv", type=str, default=None, help="Path to input CSV"
+    )
+    parser.add_argument(
+        "--target-column",
+        dest="target_column",
+        type=str,
+        default="value",
+        help="Target column name",
+    )
+    parser.add_argument(
+        "--date-column", dest="date_column", type=str, default="date", help="Date column name"
+    )
+    parser.add_argument(
+        "--n-lags", dest="n_lags", type=int, default=48, help="Number of lag features"
+    )
+    parser.add_argument(
+        "--test-size", dest="test_size", type=int, default=336, help="Test set size (last N points)"
+    )
+    parser.add_argument(
+        "--n-estimators", dest="n_estimators", type=int, default=400, help="Number of trees in RF"
+    )
+    parser.add_argument(
+        "--max-depth", dest="max_depth", type=int, default=None, help="Max depth for RF"
+    )
     args = parser.parse_args()
     return ForecastConfig(
         data_csv=args.data_csv,

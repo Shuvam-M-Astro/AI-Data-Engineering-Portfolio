@@ -1,17 +1,18 @@
-from fastapi import FastAPI, HTTPException, Depends, status
-from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
-from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel
+import logging
+import os
+from datetime import datetime, timedelta
+from typing import List, Optional
+
 import joblib
 import numpy as np
 import pandas as pd
-from datetime import datetime, timedelta
-from typing import List, Optional
-import logging
+from dotenv import load_dotenv
+from fastapi import Depends, FastAPI, HTTPException, status
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from jose import JWTError, jwt
 from passlib.context import CryptContext
-import os
-from dotenv import load_dotenv
+from pydantic import BaseModel
 
 # Load environment variables
 load_dotenv()
@@ -40,6 +41,7 @@ ACCESS_TOKEN_EXPIRE_MINUTES = 30
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
 
+
 def _load_model_once():
     try:
         model_path = os.getenv("MODEL_PATH", "model/model.joblib")
@@ -50,24 +52,30 @@ def _load_model_once():
         logger.error(f"Error loading model: {str(e)}")
         return None
 
+
 # Load model at startup
 model = _load_model_once()
+
 
 # Pydantic models
 class PredictionInput(BaseModel):
     features: List[float]
+
 
 class PredictionOutput(BaseModel):
     prediction: float
     probability: Optional[float] = None
     timestamp: datetime
 
+
 class Token(BaseModel):
     access_token: str
     token_type: str
 
+
 class TokenData(BaseModel):
     username: Optional[str] = None
+
 
 class User(BaseModel):
     username: str
@@ -75,8 +83,10 @@ class User(BaseModel):
     full_name: Optional[str] = None
     disabled: Optional[bool] = None
 
+
 class UserInDB(User):
     hashed_password: str
+
 
 # Mock user database
 fake_users_db = {
@@ -89,17 +99,21 @@ fake_users_db = {
     }
 }
 
+
 # Security functions
 def verify_password(plain_password, hashed_password):
     return pwd_context.verify(plain_password, hashed_password)
 
+
 def get_password_hash(password):
     return pwd_context.hash(password)
+
 
 def get_user(db, username: str):
     if username in db:
         user_dict = db[username]
         return UserInDB(**user_dict)
+
 
 def authenticate_user(fake_db, username: str, password: str):
     user = get_user(fake_db, username)
@@ -108,6 +122,7 @@ def authenticate_user(fake_db, username: str, password: str):
     if not verify_password(password, user.hashed_password):
         return False
     return user
+
 
 def create_access_token(data: dict, expires_delta: Optional[timedelta] = None):
     to_encode = data.copy()
@@ -118,6 +133,7 @@ def create_access_token(data: dict, expires_delta: Optional[timedelta] = None):
     to_encode.update({"exp": expire})
     encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
     return encoded_jwt
+
 
 async def get_current_user(token: str = Depends(oauth2_scheme)):
     credentials_exception = HTTPException(
@@ -138,6 +154,7 @@ async def get_current_user(token: str = Depends(oauth2_scheme)):
         raise credentials_exception
     return user
 
+
 # API endpoints
 @app.post("/token", response_model=Token)
 async def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends()):
@@ -154,45 +171,43 @@ async def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends(
     )
     return {"access_token": access_token, "token_type": "bearer"}
 
+
 @app.post("/predict", response_model=PredictionOutput)
-async def predict(
-    input_data: PredictionInput,
-    current_user: User = Depends(get_current_user)
-):
+async def predict(input_data: PredictionInput, current_user: User = Depends(get_current_user)):
     if model is None:
         raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="Model not loaded"
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="Model not loaded"
         )
-    
+
     try:
         # Convert input to numpy array
         features = np.array(input_data.features).reshape(1, -1)
-        
+
         # Make prediction
         prediction = model.predict(features)[0]
-        
+
         # Get probability if available
         probability = None
         if hasattr(model, "predict_proba"):
             probability = model.predict_proba(features)[0][1]
-        
+
         return PredictionOutput(
             prediction=float(prediction),
             probability=float(probability) if probability is not None else None,
-            timestamp=datetime.utcnow()
+            timestamp=datetime.utcnow(),
         )
-    
+
     except Exception as e:
         logger.error(f"Prediction error: {str(e)}")
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Error making prediction"
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Error making prediction"
         )
+
 
 @app.on_event("startup")
 async def _log_startup():
     logger.info("Model Serving API started")
+
 
 @app.get("/health")
 async def health_check():
@@ -200,9 +215,11 @@ async def health_check():
         "status": "healthy",
         "model_loaded": model is not None,
         "model_path": os.getenv("MODEL_PATH", "model/model.joblib"),
-        "timestamp": datetime.utcnow()
+        "timestamp": datetime.utcnow(),
     }
+
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8000) 
+
+    uvicorn.run(app, host="0.0.0.0", port=8000)

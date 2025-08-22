@@ -1,27 +1,42 @@
-import pandas as pd
-import numpy as np
-import time
 import argparse
+import time
 from datetime import datetime
-from sklearn.model_selection import train_test_split
-from sklearn.feature_extraction.text import CountVectorizer, TfidfVectorizer
-from sklearn.naive_bayes import MultinomialNB
-from sklearn.metrics import accuracy_score, classification_report
+
 import joblib
+import numpy as np
+import pandas as pd
+from sklearn.feature_extraction.text import CountVectorizer, TfidfVectorizer
+from sklearn.metrics import accuracy_score, classification_report
+from sklearn.model_selection import train_test_split
+from sklearn.naive_bayes import MultinomialNB
 
 
 def parse_args():
-    parser = argparse.ArgumentParser(description='IMDB Sentiment Analysis with Advanced Features')
-    parser.add_argument('--mode', type=str, default='train', choices=['train', 'inference', 'benchmark'],
-                        help='Mode to run the script in')
-    parser.add_argument('--quantize', action='store_true', help='Enable quantization')
-    parser.add_argument('--prune', action='store_true', help='Enable pruning')
-    parser.add_argument('--prune_amount', type=float, default=0.3, help='Amount of pruning (0-1)')
-    parser.add_argument('--test_size', type=float, default=0.2, help='Test set size ratio')
-    parser.add_argument('--vectorizer', type=str, default='tfidf', choices=['count', 'tfidf'],
-                        help='Type of vectorizer to use')
-    parser.add_argument('--train_csv', type=str, default='imdb_reviews_train.csv', help='Training CSV path')
-    parser.add_argument('--test_csv', type=str, default='imdb_reviews_test.csv', help='Test CSV path')
+    parser = argparse.ArgumentParser(description="IMDB Sentiment Analysis with Advanced Features")
+    parser.add_argument(
+        "--mode",
+        type=str,
+        default="train",
+        choices=["train", "inference", "benchmark"],
+        help="Mode to run the script in",
+    )
+    parser.add_argument("--quantize", action="store_true", help="Enable quantization")
+    parser.add_argument("--prune", action="store_true", help="Enable pruning")
+    parser.add_argument("--prune_amount", type=float, default=0.3, help="Amount of pruning (0-1)")
+    parser.add_argument("--test_size", type=float, default=0.2, help="Test set size ratio")
+    parser.add_argument(
+        "--vectorizer",
+        type=str,
+        default="tfidf",
+        choices=["count", "tfidf"],
+        help="Type of vectorizer to use",
+    )
+    parser.add_argument(
+        "--train_csv", type=str, default="imdb_reviews_train.csv", help="Training CSV path"
+    )
+    parser.add_argument(
+        "--test_csv", type=str, default="imdb_reviews_test.csv", help="Test CSV path"
+    )
     return parser.parse_args()
 
 
@@ -32,23 +47,23 @@ class ModelBenchmark:
         self.results = []
 
     def log_metric(self, metric_name, value, metadata=None):
-        timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         entry = {
-            'timestamp': timestamp,
-            'metric': metric_name,
-            'value': value,
-            'device': self.device_type,
-            'model_size': self.get_model_size(),
-            'metadata': metadata or {}
+            "timestamp": timestamp,
+            "metric": metric_name,
+            "value": value,
+            "device": self.device_type,
+            "model_size": self.get_model_size(),
+            "metadata": metadata or {},
         }
         self.results.append(entry)
 
     def get_model_size(self):
-        if hasattr(self.model, 'feature_count_'):
+        if hasattr(self.model, "feature_count_"):
             return self.model.feature_count_.nbytes / 1024  # Size in KB
         return 0
 
-    def save_results(self, filename='imdb_benchmark_results.csv'):
+    def save_results(self, filename="imdb_benchmark_results.csv"):
         df = pd.DataFrame(self.results)
         df.to_csv(filename, index=False)
         print(f"Results saved to {filename}")
@@ -60,13 +75,13 @@ def setup_environment():
 
 def get_data(csv_file_path):
     df = pd.read_csv(csv_file_path)
-    X = df['review']
-    y = df['sentiment']
+    X = df["review"]
+    y = df["sentiment"]
     return X, y
 
 
 def get_vectorizer(vectorizer_type):
-    if vectorizer_type == 'count':
+    if vectorizer_type == "count":
         return CountVectorizer(max_features=10000)
     else:
         return TfidfVectorizer(max_features=10000)
@@ -94,20 +109,20 @@ def train_model(X, y, args, benchmark):
     print("\nClassification Report:")
     print(classification_report(y_test, y_pred))
 
-    benchmark.log_metric('training_time', training_time)
-    benchmark.log_metric('accuracy', accuracy)
+    benchmark.log_metric("training_time", training_time)
+    benchmark.log_metric("accuracy", accuracy)
 
     return model, vectorizer, X_test_vec, y_test
 
 
-def save_model(model, vectorizer, filename='imdb_model.joblib'):
-    joblib.dump({'model': model, 'vectorizer': vectorizer}, filename)
+def save_model(model, vectorizer, filename="imdb_model.joblib"):
+    joblib.dump({"model": model, "vectorizer": vectorizer}, filename)
     print(f"Model saved to {filename}")
 
 
-def load_model(filename='imdb_model.joblib'):
+def load_model(filename="imdb_model.joblib"):
     saved_data = joblib.load(filename)
-    return saved_data['model'], saved_data['vectorizer']
+    return saved_data["model"], saved_data["vectorizer"]
 
 
 def quantize_model(model):
@@ -142,9 +157,9 @@ def benchmark_inference(model, vectorizer, X_test, y_test, benchmark):
     print(f"Samples per second: {samples_per_second:.2f}")
     print(f"Accuracy: {accuracy:.4f}")
 
-    benchmark.log_metric('inference_throughput', samples_per_second)
-    benchmark.log_metric('avg_inference_time', inference_time/total_samples)
-    benchmark.log_metric('inference_accuracy', accuracy)
+    benchmark.log_metric("inference_throughput", samples_per_second)
+    benchmark.log_metric("avg_inference_time", inference_time / total_samples)
+    benchmark.log_metric("inference_accuracy", accuracy)
 
 
 def main():
@@ -153,23 +168,23 @@ def main():
 
     benchmark = ModelBenchmark(None, device_type)
 
-    if args.mode == 'train':
+    if args.mode == "train":
         X, y = get_data(args.train_csv)
         model, vectorizer, X_test, y_test = train_model(X, y, args, benchmark)
 
         if args.quantize:
             model = quantize_model(model)
             benchmark.model = model
-            benchmark.log_metric('model_size_after_quantization', benchmark.get_model_size())
+            benchmark.log_metric("model_size_after_quantization", benchmark.get_model_size())
 
         if args.prune:
             model = prune_model(model, args.prune_amount)
             benchmark.model = model
-            benchmark.log_metric('model_size_after_pruning', benchmark.get_model_size())
+            benchmark.log_metric("model_size_after_pruning", benchmark.get_model_size())
 
         save_model(model, vectorizer)
 
-    elif args.mode == 'inference':
+    elif args.mode == "inference":
         model, vectorizer = load_model()
         benchmark.model = model
 
@@ -184,7 +199,7 @@ def main():
 
         benchmark_inference(model, vectorizer, X_test, y_test, benchmark)
 
-    elif args.mode == 'benchmark':
+    elif args.mode == "benchmark":
         model, vectorizer = load_model()
         benchmark.model = model
 
@@ -206,5 +221,5 @@ def main():
     benchmark.save_results()
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

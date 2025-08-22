@@ -1,24 +1,27 @@
 import os
-# Disable MKL threading to avoid DLL issues
-os.environ['MKL_THREADING_LAYER'] = 'GNU'
-os.environ['MKL_SERVICE_FORCE_INTEL'] = '1'
 
-import pandas as pd
+# Disable MKL threading to avoid DLL issues
+os.environ["MKL_THREADING_LAYER"] = "GNU"
+os.environ["MKL_SERVICE_FORCE_INTEL"] = "1"
+
+import warnings
+
+import matplotlib.pyplot as plt
 import numpy as np
-from sklearn.model_selection import train_test_split
-from sklearn.preprocessing import StandardScaler, LabelEncoder
+import pandas as pd
+from scipy import stats
 from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import accuracy_score, classification_report
-import matplotlib.pyplot as plt
-from scipy import stats
-import warnings
-warnings.filterwarnings('ignore')
+from sklearn.model_selection import train_test_split
+from sklearn.preprocessing import LabelEncoder, StandardScaler
+
+warnings.filterwarnings("ignore")
 
 print("Starting Alternative Bayesian Churn Analysis...")
 
 # 1. Load and preprocess data
 try:
-    df = pd.read_csv('WA_Fn-UseC_-Telco-Customer-Churn.csv')
+    df = pd.read_csv("WA_Fn-UseC_-Telco-Customer-Churn.csv")
     print("Dataset loaded successfully!")
 except FileNotFoundError:
     print("Dataset file not found. Please download the Telco Customer Churn dataset from Kaggle.")
@@ -27,34 +30,41 @@ except FileNotFoundError:
 
 # Clean the data
 print("Cleaning dataset...")
-df = df[df['TotalCharges'] != ' ']
-df['TotalCharges'] = df['TotalCharges'].astype(float)
+df = df[df["TotalCharges"] != " "]
+df["TotalCharges"] = df["TotalCharges"].astype(float)
 
 # Handle NaN values in Churn column
-if 'Churn' in df.columns:
+if "Churn" in df.columns:
     # Remove rows where Churn is NaN
-    df = df.dropna(subset=['Churn'])
+    df = df.dropna(subset=["Churn"])
     print(f"Removed {len(df)} rows with valid Churn values")
 else:
     print("Error: 'Churn' column not found in dataset")
     exit()
 
 # Convert Churn to numeric if it's not already
-if df['Churn'].dtype == 'object':
-    df['Churn'] = df['Churn'].map({'No': 0, 'Yes': 1})
-elif df['Churn'].dtype == 'float64':
+if df["Churn"].dtype == "object":
+    df["Churn"] = df["Churn"].map({"No": 0, "Yes": 1})
+elif df["Churn"].dtype == "float64":
     # If it's already numeric, convert to int
-    df['Churn'] = df['Churn'].astype(int)
+    df["Churn"] = df["Churn"].astype(int)
 
 # Encode categorical variables
-for col in df.select_dtypes(include='object').columns:
-    if col not in ['customerID', 'Churn']:
+for col in df.select_dtypes(include="object").columns:
+    if col not in ["customerID", "Churn"]:
         df[col] = LabelEncoder().fit_transform(df[col])
 
 # Features and target
-features = ['tenure', 'MonthlyCharges', 'TotalCharges', 'Contract', 'InternetService', 'PaymentMethod']
+features = [
+    "tenure",
+    "MonthlyCharges",
+    "TotalCharges",
+    "Contract",
+    "InternetService",
+    "PaymentMethod",
+]
 X = df[features]
-y = df['Churn']
+y = df["Churn"]
 
 print(f"Dataset shape: {df.shape}")
 print(f"Features used: {features}")
@@ -71,7 +81,7 @@ for col in features:
     if nan_count > 0:
         print(f"- {col}: {nan_count} NaN values")
         # Fill NaN with median for numeric columns
-        if X[col].dtype in ['float64', 'int64']:
+        if X[col].dtype in ["float64", "int64"]:
             X[col] = X[col].fillna(X[col].median())
             print(f"  Filled NaN values with median for {col}")
 
@@ -100,22 +110,23 @@ print(f"Test Accuracy: {accuracy_score(y_test, y_test_pred_lr):.4f}")
 # 3. Bayesian Analysis using Bootstrap Sampling
 print("\nRunning Bayesian Analysis using Bootstrap Sampling...")
 
+
 def bootstrap_logistic_regression(X, y, n_bootstrap=1000):
     """Perform bootstrap sampling to get Bayesian-like parameter estimates"""
     # Convert to numpy arrays to avoid pandas indexing issues
     X_np = np.array(X)
     y_np = np.array(y)
-    
+
     n_samples, n_features = X_np.shape
     bootstrap_coeffs = []
     bootstrap_intercepts = []
-    
+
     for i in range(n_bootstrap):
         # Bootstrap sample
         indices = np.random.choice(n_samples, n_samples, replace=True)
         X_boot = X_np[indices]
         y_boot = y_np[indices]
-        
+
         # Fit logistic regression
         try:
             model = LogisticRegression(random_state=i, max_iter=1000)
@@ -124,11 +135,14 @@ def bootstrap_logistic_regression(X, y, n_bootstrap=1000):
             bootstrap_intercepts.append(model.intercept_[0])
         except:
             continue
-    
+
     return np.array(bootstrap_coeffs), np.array(bootstrap_intercepts)
 
+
 # Run bootstrap sampling
-bootstrap_coeffs, bootstrap_intercepts = bootstrap_logistic_regression(X_train_scaled, y_train, n_bootstrap=1000)
+bootstrap_coeffs, bootstrap_intercepts = bootstrap_logistic_regression(
+    X_train_scaled, y_train, n_bootstrap=1000
+)
 
 print(f"Bootstrap samples collected: {len(bootstrap_coeffs)}")
 
@@ -170,7 +184,7 @@ for i in range(min(100, len(bootstrap_coeffs))):  # Use subset for efficiency
     logits_train = bootstrap_intercepts[i] + np.dot(X_train_scaled_np, bootstrap_coeffs[i])
     probs_train = 1 / (1 + np.exp(-logits_train))
     y_train_pred_bayes.append(probs_train)
-    
+
     # Predict on test set
     logits_test = bootstrap_intercepts[i] + np.dot(X_test_scaled_np, bootstrap_coeffs[i])
     probs_test = 1 / (1 + np.exp(-logits_test))
@@ -189,15 +203,17 @@ print(f"Train Accuracy: {train_accuracy_bayes:.4f}")
 print(f"Test Accuracy: {test_accuracy_bayes:.4f}")
 
 # 7. Save results
-results_df = pd.DataFrame({
-    'Parameter': ['intercept'] + features,
-    'Mean': [intercept_mean] + list(coeff_means),
-    'Std': [intercept_std] + list(coeff_stds),
-    'CI_Lower': [intercept_ci_lower] + list(coeff_ci_lower),
-    'CI_Upper': [intercept_ci_upper] + list(coeff_ci_upper)
-})
+results_df = pd.DataFrame(
+    {
+        "Parameter": ["intercept"] + features,
+        "Mean": [intercept_mean] + list(coeff_means),
+        "Std": [intercept_std] + list(coeff_stds),
+        "CI_Lower": [intercept_ci_lower] + list(coeff_ci_lower),
+        "CI_Upper": [intercept_ci_upper] + list(coeff_ci_upper),
+    }
+)
 
-results_df.to_csv('churn_bayesian_bootstrap_summary.csv', index=False)
+results_df.to_csv("churn_bayesian_bootstrap_summary.csv", index=False)
 print(f"\nResults saved to 'churn_bayesian_bootstrap_summary.csv'")
 
 # 8. Visualization
@@ -205,28 +221,35 @@ plt.figure(figsize=(15, 10))
 
 # Plot coefficient distributions
 for i in range(len(features)):
-    plt.subplot(2, 3, i+1)
-    plt.hist(bootstrap_coeffs[:, i], bins=50, alpha=0.7, color='skyblue', edgecolor='black')
-    plt.axvline(coeff_means[i], color='red', linestyle='--', label=f'Mean: {coeff_means[i]:.3f}')
-    plt.axvline(coeff_ci_lower[i], color='orange', linestyle=':', label=f'95% CI: [{coeff_ci_lower[i]:.3f}, {coeff_ci_upper[i]:.3f}]')
-    plt.axvline(coeff_ci_upper[i], color='orange', linestyle=':')
-    plt.title(f'{features[i]} Coefficient Distribution')
-    plt.xlabel('Coefficient Value')
-    plt.ylabel('Frequency')
+    plt.subplot(2, 3, i + 1)
+    plt.hist(bootstrap_coeffs[:, i], bins=50, alpha=0.7, color="skyblue", edgecolor="black")
+    plt.axvline(coeff_means[i], color="red", linestyle="--", label=f"Mean: {coeff_means[i]:.3f}")
+    plt.axvline(
+        coeff_ci_lower[i],
+        color="orange",
+        linestyle=":",
+        label=f"95% CI: [{coeff_ci_lower[i]:.3f}, {coeff_ci_upper[i]:.3f}]",
+    )
+    plt.axvline(coeff_ci_upper[i], color="orange", linestyle=":")
+    plt.title(f"{features[i]} Coefficient Distribution")
+    plt.xlabel("Coefficient Value")
+    plt.ylabel("Frequency")
     plt.legend()
 
 plt.tight_layout()
-plt.savefig('churn_bayesian_bootstrap_plots.png', dpi=300, bbox_inches='tight')
+plt.savefig("churn_bayesian_bootstrap_plots.png", dpi=300, bbox_inches="tight")
 print("Plots saved to 'churn_bayesian_bootstrap_plots.png'")
 
 # 9. Feature importance analysis
 feature_importance = np.abs(coeff_means)
-feature_importance_df = pd.DataFrame({
-    'Feature': features,
-    'Mean_Effect': coeff_means,
-    'Std_Effect': coeff_stds,
-    'Abs_Effect': feature_importance
-}).sort_values('Abs_Effect', ascending=False)
+feature_importance_df = pd.DataFrame(
+    {
+        "Feature": features,
+        "Mean_Effect": coeff_means,
+        "Std_Effect": coeff_stds,
+        "Abs_Effect": feature_importance,
+    }
+).sort_values("Abs_Effect", ascending=False)
 
 print(f"\nFeature Importance (by absolute effect size):")
 for _, row in feature_importance_df.iterrows():
@@ -236,7 +259,9 @@ for _, row in feature_importance_df.iterrows():
 print(f"\nModel Comparison:")
 print(f"{'Model':<20} {'Train Acc':<12} {'Test Acc':<12}")
 print("-" * 44)
-print(f"{'Frequentist':<20} {accuracy_score(y_train, y_train_pred_lr):<12.4f} {accuracy_score(y_test, y_test_pred_lr):<12.4f}")
+print(
+    f"{'Frequentist':<20} {accuracy_score(y_train, y_train_pred_lr):<12.4f} {accuracy_score(y_test, y_test_pred_lr):<12.4f}"
+)
 print(f"{'Bayesian (Bootstrap)':<20} {train_accuracy_bayes:<12.4f} {test_accuracy_bayes:<12.4f}")
 
 print(f"\nAnalysis completed successfully!")
@@ -244,4 +269,4 @@ print(f"Key findings:")
 print(f"- Dataset has {len(df)} customers with {y.mean():.1%} churn rate")
 print(f"- Bayesian analysis used {len(bootstrap_coeffs)} bootstrap samples")
 print(f"- Most important feature: {feature_importance_df.iloc[0]['Feature']}")
-print(f"- Model performance is similar between frequentist and Bayesian approaches") 
+print(f"- Model performance is similar between frequentist and Bayesian approaches")

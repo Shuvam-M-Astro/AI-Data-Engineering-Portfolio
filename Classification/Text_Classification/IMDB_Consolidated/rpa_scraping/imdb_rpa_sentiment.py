@@ -9,6 +9,5 @@ if str(REPO_ROOT) not in sys.path:
 
 from NLP.Sentiment_Analysis.RPA_Sentiment_Analysis.imdb_rpa_sentiment import main as rpa_main
 
-
 if __name__ == "__main__":
     rpa_main()

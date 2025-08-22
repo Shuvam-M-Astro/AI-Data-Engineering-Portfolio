@@ -1,1 +1,1 @@
-# Shared utilities for ML projects 
+# Shared utilities for ML projects
